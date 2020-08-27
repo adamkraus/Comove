@@ -1,13 +1,16 @@
 import Comove
 
 targname="TYC 6110-1007-1"
+rd = [None,None]
+rd = ['12 40 45.9694160957', '-21 52 21.831891557']
+
 radvel=-15.12
 
 vlim=5.0
 srad=25.0
 
 
-output_location = Comove.findfriends(targname,radvel,velocity_limit=vlim,search_radius=srad,radec=[None,None],output_directory=None)
+output_location = Comove.findfriends(targname,radvel,velocity_limit=vlim,search_radius=srad,radec=rd,output_directory=None)
 #print('output is in ' + output_location)
 #print('Done')
 
