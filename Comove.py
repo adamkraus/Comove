@@ -79,7 +79,6 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print('Coordinates: ' + str(usera) +' '+str(usedec))
         print()
 
-
     c = SkyCoord( ra=usera , dec=usedec , unit=(u.hourangle, u.deg) , frame='icrs')
     if verbose == True: print(c)
 
