@@ -2,6 +2,8 @@
 A python package for finding comoving neighbours to a target star and returning useful information regarding youth.<br/>
 Great for seeing if a young looking star has other young, comoving friends nearby.<br/>
 
+Written by Prof. Adam L. Kraus (UT Austin) and packaged by Aaron Rizzuto (UT Austin)<br/>
+
 # What Comove does:
 1. The code will query Gaia dr2 for stars within radius equivalent to the defined on-sky window, and within the input velocity difference range <br/>
 2. Query 2MASS, Galex and Wise on the resulting neighbours <br/>
