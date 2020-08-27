@@ -10,8 +10,7 @@ Great for seeing if a young looking star has other young, comoving friends nearb
 
 Currently only works with python 3<br/>
 
-DEPENDENCIES:<br/>
--------------<br/>
+# DEPENDENCIES:
 All available via pip:<br/>
 galpy <br/>
 astroquery<br/>
@@ -20,8 +19,7 @@ scipy<br/>
 cartopy (and all of its dependencies)<br/>
 matplotlib<br/>
 
-INSTALLATION:
---------------
+# INSTALLATION:
 To install the python 3 version:<br/>
 git clone https://github.com/arizzuto/Comove.git<br/>
 cd Comove<br/>
