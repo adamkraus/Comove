@@ -23,7 +23,7 @@ matplotlib<br/>
 
 # INSTALLATION:
 To install the python 3 version:<br/>
-git clone https://github.com/arizzuto/Comove.git<br/>
+git clone https://github.com/adamkraus/Comove.git<br/>
 cd Comove<br/>
 python setup.py build<br/>
 python setup.py install<br/>
