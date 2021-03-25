@@ -13,7 +13,7 @@ radvel=-15.12 ##km/s
 
 ##Neighbour velocity difference limit, and on sky search radius
 vlim=5.0 ##km/s
-srad=25.0 ##degrees
+srad=25.0 ##parsecs (spherical radius around target)
 
 
 ##This line runs the entire code. Set showplots=True to interactively plot, otherwise they are only saved as pngs
