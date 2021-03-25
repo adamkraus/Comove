@@ -447,7 +447,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                      unit=(u.deg,u.deg) , frame='icrs')
         if verbose == True: print(querycoord)
     
-        wisecat = Irsa.query_region(querycoord,catalog='cwcat2' , radius='0d0m10s')
+        wisecat = Irsa.query_region(querycoord,catalog='catwise_2020' , radius='0d0m10s')
         if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0):
             ww = np.where( (wisecat['w1mpro'] == min(wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -20.0)])))
             WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
