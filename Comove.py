@@ -84,9 +84,16 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     # Find precise coordinates and distance from Gaia, define search radius and parallax cutoff
     print('Asking Gaia for precise coordinates')
-    Pgaia = Gaia.query_object_async(coordinate=c, radius=(5.0*u.arcsec))
+#    Pgaia = Gaia.query_object_async(coordinate=c, radius=(5.0*u.arcsec))
+    sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE CONTAINS( \
+               POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec), \
+               CIRCLE('ICRS'," + str(c.ra.value) +","+ str(c.dec.value) +","+ str(6.0/3600.0) +"))=1;"
+    job = Gaia.launch_job_async(sqltext , dump_to_file=False)
+    Pgaia = job.get_results()
     if verbose == True:
-        print(Pgaia['ra','dec','phot_g_mean_mag','parallax'])
+        print(sqltext)
+        print()
+        print(Pgaia['source_id','ra','dec','phot_g_mean_mag','parallax','ruwe'].pprint_all())
         print()
 
     minpos = Pgaia['phot_g_mean_mag'].tolist().index(min(Pgaia['phot_g_mean_mag']))
@@ -106,14 +113,16 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
 
     # Query Gaia with search radius and parallax cut
+    # Note, a cut on parallax_error was added because searches at low galactic latitude 
+    # return an overwhelming number of noisy sources that scatter into the search volume - ALK 20210325
     print('Querying Gaia for neighbors')
     if (searchradpc < Pcoord.distance):
-        sqltext = "SELECT * FROM gaiadr2.gaia_source WHERE CONTAINS( \
-            POINT('ICRS',gaiadr2.gaia_source.ra,gaiadr2.gaia_source.dec), \
+        sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE CONTAINS( \
+            POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec), \
             CIRCLE('ICRS'," + str(Pcoord.ra.value) +","+ str(Pcoord.dec.value) +","+ str(searchraddeg.value) +"))\
-            =1 AND parallax>" + str(minpar.value) + ";"
+            =1 AND parallax>" + str(minpar.value) + " AND parallax_error<0.5;"
     if (searchradpc >= Pcoord.distance):
-        sqltext = "SELECT * FROM gaiadr2.gaia_source WHERE parallax>" + str(minpar.value) + ";"
+        sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE parallax>" + str(minpar.value) + " AND parallax_error<0.5;"
         print('Note, using all-sky search')
     if verbose == True:
         print(sqltext)
@@ -179,26 +188,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print('Chi^2 values:')
         print(Gchi2)
 
-    # Query Gaia for RUWE
-
-    RUWE = np.empty(np.array(Gchi2).size)
-    RUWE[:] = np.nan
-
-    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
-    yy = zz[0][np.argsort(sep3d[zz])]
-
-    print('Querying RUWE values in Gaia')
-    ##up to here works
-    for x in range(0 , np.array(yy).size):
-        sqltext = "SELECT * FROM gaiadr2.ruwe WHERE source_id=" + str(r['source_id'][yy[x]]) + ";"
-        job = Gaia.launch_job(sqltext , dump_to_file=False)
-        rr = job.get_results()
-        RUWE[yy[x]] = rr['ruwe'][0]
-        if verbose == True: print(yy[x] , r['source_id'][yy[x]] , RUWE[yy[x]])
-
-
     # Create Gaia CMD plot
-
 
     mamajek = np.loadtxt(datapath+'/sptGBpRp.txt')
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) ) # Note, this causes an error because NaNs
@@ -211,14 +201,14 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     if verbose == True: print(figname)
     plt.figure(figsize=(12,8))
     plt.plot(mamajek[:,2] , mamajek[:,1]  , zorder=1 , label='Mamajek MS')
-    ww = np.where( (RUWE[yy2] < 1.2) )
+    ww = np.where( (r['ruwe'][yy2] < 1.2) )
     plt.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
     #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
                s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
                marker='o' , edgecolors='black' , zorder=2 ,  \
                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
 
-    ww = np.where( (RUWE[yy2] >= 1.2) )    
+    ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
     plt.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
     #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
                s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
@@ -242,7 +232,95 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
     plt.close('all')
+
     
+    # Create XYZ plot
+
+    Pxyz = bc.lbd_to_XYZ( Pllbb[0] , Pllbb[1] , Pcoord.distance.value/1000.0 , degree=True)
+
+    fig,axs = plt.subplots(2,2)
+    fig.set_figheight(16)
+    fig.set_figwidth(16)
+    fig.subplots_adjust(hspace=0.03,wspace=0.03)
+
+    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.value > 0.00001) & \
+             (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) )
+    yy2= zz2[0][np.argsort(sep3d[zz2])]
+
+    ww = np.where( (r['ruwe'][yy2] < 1.2) )
+    cbcolors = axs[0,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],1] , \
+                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+                  marker='o' , edgecolors='black' , zorder=2 , \
+                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
+    axs[0,1].scatter( 1000.0*Gxyz[yy2[ww],2] , 1000.0*Gxyz[yy2[ww],1] , \
+                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+                  marker='o' , edgecolors='black' , zorder=2 , \
+                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
+    axs[1,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],2] , \
+                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+                  marker='o' , edgecolors='black' , zorder=2 , \
+                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+
+    ww = np.where( (r['ruwe'][yy2] >= 1.2) )
+    axs[0,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],1] , \
+                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+                  marker='s' , edgecolors='black' , zorder=2 , \
+                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
+    axs[0,1].scatter( 1000.0*Gxyz[yy2[ww],2] , 1000.0*Gxyz[yy2[ww],1] , \
+                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+                  marker='s' , edgecolors='black' , zorder=2 , \
+                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
+    axs[1,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],2] , \
+                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+                  marker='s' , edgecolors='black' , zorder=3 , \
+                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+
+    axs[0,0].plot( 1000.0*Pxyz[0] , 1000.0*Pxyz[1] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red')
+    axs[0,1].plot( 1000.0*Pxyz[2] , 1000.0*Pxyz[1] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red')
+    axs[1,0].plot( 1000.0*Pxyz[0] , 1000.0*Pxyz[2] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=1 , label = targname)
+
+    axs[0,0].set_xlim( [1000.0*Pxyz[0]-26.0 , 1000.0*Pxyz[0]+26.0] )
+    axs[0,0].set_ylim( [1000.0*Pxyz[1]-26.0 , 1000.0*Pxyz[1]+26.0] )
+    axs[0,1].set_xlim( [1000.0*Pxyz[2]-26.0 , 1000.0*Pxyz[2]+26.0] )
+    axs[0,1].set_ylim( [1000.0*Pxyz[1]-26.0 , 1000.0*Pxyz[1]+26.0] )
+    axs[1,0].set_xlim( [1000.0*Pxyz[0]-26.0 , 1000.0*Pxyz[0]+26.0] )
+    axs[1,0].set_ylim( [1000.0*Pxyz[2]-26.0 , 1000.0*Pxyz[2]+26.0] )
+    
+    axs[0,0].set_xlabel('X (pc)',fontsize=20,labelpad=10)
+    axs[0,0].set_ylabel('Y (pc)',fontsize=20,labelpad=10)
+
+    axs[1,0].set_xlabel('X (pc)',fontsize=20,labelpad=10)
+    axs[1,0].set_ylabel('Z (pc)',fontsize=20,labelpad=10)
+
+    axs[0,1].set_xlabel('Z (pc)',fontsize=20,labelpad=10)
+    axs[0,1].set_ylabel('Y (pc)',fontsize=20,labelpad=10)
+
+    axs[0,0].xaxis.set_ticks_position('top')
+    axs[0,1].xaxis.set_ticks_position('top')
+    axs[0,1].yaxis.set_ticks_position('right')
+
+    axs[0,0].xaxis.set_label_position('top')
+    axs[0,1].xaxis.set_label_position('top')
+    axs[0,1].yaxis.set_label_position('right')
+
+    for aa in [0,1]:
+        for bb in [0,1]:
+            axs[aa,bb].tick_params(top=True,bottom=True,left=True,right=True,direction='in',labelsize=18)
+
+    fig.delaxes(axs[1][1])
+    fig.legend( bbox_to_anchor=(0.84,0.27) , prop={'size': 24})
+
+    cbaxes = fig.add_axes([0.55,0.14,0.02,0.34])
+    cb = plt.colorbar( cbcolors , cax=cbaxes )
+    cb.set_label( label='Velocity Difference (km/s)' , fontsize=24 , labelpad=20 )
+    cb.ax.tick_params(labelsize=18)
+
+    figname=outdir + targname.replace(" ", "") + "xyz.png"
+    plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
+
+    if showplots == True: plt.show()
+    plt.close('all')
+
 
 
     # Create sky map
@@ -299,7 +377,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     base=plt.cm.get_cmap('cubehelix')
     for x in range(1 , np.array(yy).size):
             ax.plot( RAlist[x] , DElist[x] , markeredgecolor='black' , \
-                marker=('o' if (RUWE[yy[x]] <1.2) else 's') , \
+                marker=('o' if (r['ruwe'][yy[x]] <1.2) else 's') , \
     #            ms=(17-Gchi2[yy[x]]*3) , \
     #            mfc=base((sep3d[yy[x]].value/searchradpc.value)) , \
                 ms=(17-12.0*(sep3d[yy[x]].value/searchradpc.value)) , \
@@ -333,6 +411,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     for x in range(0 , np.array(yy).size):
         querystring=((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) \
                       else str(gaiacoord.ra[yy[x]].value+360.0)) + " " + str(gaiacoord.dec[yy[x]].value))
+        if verbose == True: print('GALEX query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querystring)
         galex = Catalogs.query_object(querystring , catalog="Galex" , radius=0.0028)
         if ((np.where(galex['nuv_magerr'] > 0.0)[0]).size > 0):
@@ -353,6 +432,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
+        if verbose == True: print('2MASS query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
         tmass = Irsa.query_region(querycoord,catalog='fp_psc' , radius='0d0m10s')
         if ((np.where(tmass['j_m'] > -10.0)[0]).size > 0):
@@ -411,9 +491,9 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     hyades = readsav(datapath +'/HYsaved.sav')
     hyadesfnuvj = (3631.0 * 10**6 * 10**(-0.4 * hyades['clnuv'])) / (1594.0 * 10**6 * 10**(-0.4 * hyades['clJ']))
     ax1.plot(hyades['clspt'] , hyadesfnuvj , 'x' , markersize=5 , mew=1 , markeredgecolor='black' , zorder=1 , label='Hyades' )
-    ww = np.where( (RUWE[yy[1:]] < 1.2) )
+    ww = np.where( (r['ruwe'][yy[1:]] < 1.2) )
     ccc = ax1.scatter(spt[yy[1:][ww]] , fnuvj[yy[1:][ww]] , s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , marker='o' , edgecolors='black' , zorder=2 , vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE < 1.2" )
-    ww = np.where( (RUWE[yy[1:]] >= 1.2) )
+    ww = np.where( (r['ruwe'][yy[1:]] >= 1.2) )
     ax1.scatter(spt[yy[1:][ww]] , fnuvj[yy[1:][ww]] ,  s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , marker='s' , edgecolors='black' , zorder=2 , vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE > 1.2" )
 
     # Plot science target
@@ -445,6 +525,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
+        if verbose == True: print('WISE query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
     
         wisecat = Irsa.query_region(querycoord,catalog='catwise_2020' , radius='0d0m10s')
@@ -519,12 +600,12 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     # Plot neighbors
     plt.errorbar( spt[yy] , W13[yy] , yerr=W13err[yy] , fmt='.k' , zorder=1)
-    ww = np.where( (RUWE[yy[1:]] < 1.2) )
+    ww = np.where( (r['ruwe'][yy[1:]] < 1.2) )
     plt.scatter(spt[yy[1:][ww]] , W13[yy[1:][ww]] , \
                s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , 
                marker='o' , edgecolors='black' , zorder=2 ,  \
                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE < 1.2" )
-    ww = np.where( (RUWE[yy[1:]] >= 1.2) )
+    ww = np.where( (r['ruwe'][yy[1:]] >= 1.2) )
     plt.scatter(spt[yy[1:][ww]] , W13[yy[1:][ww]] , \
                s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , 
                marker='s' , edgecolors='black' , zorder=2 ,  \
@@ -556,6 +637,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
+        if verbose == True: print('ROSAT query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
         rosatcat = v.query_region(querycoord , radius='0d1m0s' )
         if (len(rosatcat) > 0):
@@ -596,12 +678,12 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                 print(fmt1 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                   r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                   Gchi2[yy[x]] , sep[yy[x]].value , sep3d[yy[x]].value , Gvrpmllpmbb[yy[x],0] , \
-                  sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , RUWE[yy[x]] , ROSATflux[yy[x]]) )
+                  sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
             with open(filename,'a') as file1:
                   file1.write(fmt2 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                       r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                       Gchi2[yy[x]],sep[yy[x]].value,sep3d[yy[x]].value , Gvrpmllpmbb[yy[x],0] , \
-                      sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , RUWE[yy[x]] , ROSATflux[yy[x]]) )
+                      sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
                   file1.write("\n")
     if verbose == True: print('All output can be found in ' + outdir)
     return outdir

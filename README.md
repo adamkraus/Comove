@@ -5,7 +5,7 @@ This package offers a quick reconnaissance of whether a potential young star has
 Written by Adam L. Kraus (UT Austin) and packaged by Aaron Rizzuto (UT Austin)<br/>
 
 # What Comove does:
-1. The code will query Gaia DR2 for stars within a volume radius equivalent to the defined search sphere, and with tangential velocities (from proper motion) within the input velocity difference range <br/>
+1. The code will query Gaia EDR3 for stars within a volume radius equivalent to the defined search sphere, and with tangential velocities (from proper motion) within the input velocity difference range <br/>
 2. Query 2MASS, GALEX, ROSAT, and WISE on the resulting neighbours <br/>
 3. Make a series of useful plots displaying the search results <br/>
 4. Output a table for all the neighbors containing the combined results <br/>
