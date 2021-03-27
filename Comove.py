@@ -40,14 +40,12 @@ mpl.rcParams['axes.titleweight']='semibold'
 mpl.rcParams['font.weight'] = 'semibold'
 
 
-
-
 def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,radec=[None,None],output_directory = None,showplots=False,verbose=False):
     
     radvel= radial_velocity * u.kilometer / u.second
     
     if output_directory == None:
-        outdir = './' + targname + '_friends/'
+        outdir = './' + targname.replace(" ", "") + '_friends/'
     else: 
         outdir = output_directory
     if os.path.isdir(outdir) == True:
@@ -97,10 +95,10 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print()
 
     minpos = Pgaia['phot_g_mean_mag'].tolist().index(min(Pgaia['phot_g_mean_mag']))
-    Pcoord = SkyCoord( ra=Pgaia['ra'][0]*u.deg , dec=Pgaia['dec'][0]*u.deg , \
-                      distance=(1000.0/Pgaia['parallax'][0])*u.parsec , frame='icrs' , \
+    Pcoord = SkyCoord( ra=Pgaia['ra'][minpos]*u.deg , dec=Pgaia['dec'][minpos]*u.deg , \
+                      distance=(1000.0/Pgaia['parallax'][minpos])*u.parsec , frame='icrs' , \
                       radial_velocity=radvel , \
-                      pm_ra_cosdec=Pgaia['pmra'][0]*u.mas/u.year , pm_dec=Pgaia['pmdec'][0]*u.mas/u.year )
+                      pm_ra_cosdec=Pgaia['pmra'][minpos]*u.mas/u.year , pm_dec=Pgaia['pmdec'][minpos]*u.mas/u.year )
     #                  unit=(u.deg, u.deg , u.parsec ) \
 
     searchraddeg = np.arcsin(searchradpc/Pcoord.distance).to(u.deg)
@@ -193,7 +191,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     mamajek = np.loadtxt(datapath+'/sptGBpRp.txt')
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) ) # Note, this causes an error because NaNs
     yy = zz[0][np.argsort(sep3d[zz])]
-    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.value > 0.00001) & \
+    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
                  (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) ) # Note, this causes an error because NaNs
     yy2= zz2[0][np.argsort(sep3d[zz2])]
 
@@ -243,8 +241,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     fig.set_figwidth(16)
     fig.subplots_adjust(hspace=0.03,wspace=0.03)
 
-    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.value > 0.00001) & \
-             (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) )
+    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
     yy2= zz2[0][np.argsort(sep3d[zz2])]
 
     ww = np.where( (r['ruwe'][yy2] < 1.2) )
