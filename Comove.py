@@ -189,10 +189,10 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     # Create Gaia CMD plot
 
     mamajek = np.loadtxt(datapath+'/sptGBpRp.txt')
-    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) ) # Note, this causes an error because NaNs
+    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (np.isnan(r['bp_rp']) == False) ) # Note, this causes an error because NaNs
     yy = zz[0][np.argsort(sep3d[zz])]
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
-                 (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) ) # Note, this causes an error because NaNs
+                 (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) & (np.isnan(r['bp_rp']) == False) ) # Note, this causes an error because NaNs
     yy2= zz2[0][np.argsort(sep3d[zz2])]
 
     figname=outdir + targname.replace(" ", "") + "cmd.png"
@@ -230,6 +230,65 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
     plt.close('all')
+
+
+    # Create RV plot
+
+    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
+             (np.isnan(r['dr2_radial_velocity']) == False) )
+    yy2= zz2[0][np.argsort(sep3d[zz2])]
+
+    zz3= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
+             (np.isnan(r['dr2_radial_velocity']) == False) & \
+             ((r['dr2_radial_velocity']-Gvrpmllpmbb[:,0]) < 20.0) ) # Just to set Y axis
+
+
+    plt.figure(figsize=(12,8))
+    plt.axis([ -20.0 , +20.0, \
+           max((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)))+0.3 , \
+           min((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)))-0.3 ] )
+    plt.rc('xtick', labelsize=16)
+    plt.rc('ytick', labelsize=16)
+
+    plt.plot( [0.0,0.0] , [-20.0,25.0] , 'k--' , linewidth=1 )
+
+    plt.errorbar( (r['dr2_radial_velocity'][yy2]-Gvrpmllpmbb[yy2,0]) , \
+           (r['phot_g_mean_mag'][yy2] - (5.0*np.log10(gaiacoord.distance[yy2].value)-5.0)) , \
+            yerr=None,xerr=(r['dr2_radial_velocity_error'][yy2]) , fmt='none' , ecolor='k' )
+
+    ww = np.where( (r['ruwe'][yy2] < 1.2) )
+    plt.scatter( (r['dr2_radial_velocity'][yy2[ww]]-Gvrpmllpmbb[yy2[ww],0]) , \
+           (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
+           s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
+           marker='o' , edgecolors='black' , zorder=2 ,  \
+           vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+
+    ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
+    plt.scatter( (r['dr2_radial_velocity'][yy2[ww]]-Gvrpmllpmbb[yy2[ww],0]) , \
+           (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
+           s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
+           marker='s' , edgecolors='black' , zorder=2 ,  \
+           vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+
+    if ( (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) < \
+                                     (max((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)))+0.3) ):
+        plt.plot( [0.0] , (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) , \
+                  'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
+
+
+    plt.ylabel('M$_G$ (mag)' , fontsize=22 , labelpad=10)
+    plt.xlabel('$v_{r,obs}-v_{r,pred}$ (km/s)' , fontsize=22 , labelpad=10)
+    plt.legend(fontsize=16)
+
+    cb = plt.colorbar()
+    cb.set_label(label='Tangential Velocity Difference (km/s)',fontsize=18 , labelpad=10)
+
+    figname=outdir + targname.replace(" ", "") + "drv.png"
+    plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
+    if showplots == True: plt.show()
+    plt.close('all')
+
+
 
     
     # Create XYZ plot
@@ -657,29 +716,29 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     sortlist = np.argsort(sep3d[zz])
     yy = zz[0][sortlist]
 
-    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.1f %4s %8.6f %6.2f %7.3f %7.3f"
-    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.1f %4s %8.6f %6.2f %7.3f %7.3f"
+    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %4s %8.6f %6.2f %7.3f %7.3f"
+    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %4s %8.6f %6.2f %7.3f %7.3f"
     filename=outdir + targname.replace(" ", "") + ".txt"
-
-
     
     warnings.filterwarnings("ignore",category=UserWarning)
     if verbose == True: 
         print('Also creating SIMBAD query table')
         print(filename)
-        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  SpT    FnuvJ  W1-W3    RUWE  XCrate')
+        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)  SpT    FnuvJ  W1-W3    RUWE  XCrate')
     with open(filename,'w') as file1:
-        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  SpT    FnuvJ  W1-W3    RUWE  XCrate \n')
+        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)  SpT    FnuvJ  W1-W3    RUWE  XCrate \n')
     for x in range(0 , np.array(zz).size):
             if verbose == True:
                 print(fmt1 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                   r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
-                  Gchi2[yy[x]] , sep[yy[x]].value , sep3d[yy[x]].value , Gvrpmllpmbb[yy[x],0] , \
+                  Gchi2[yy[x]] , sep[yy[x]].value , sep3d[yy[x]].value , \
+                  Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , \
                   sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
             with open(filename,'a') as file1:
                   file1.write(fmt2 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                       r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
-                      Gchi2[yy[x]],sep[yy[x]].value,sep3d[yy[x]].value , Gvrpmllpmbb[yy[x],0] , \
+                      Gchi2[yy[x]],sep[yy[x]].value,sep3d[yy[x]].value , \
+                      Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , \
                       sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
                   file1.write("\n")
     if verbose == True: print('All output can be found in ' + outdir)
