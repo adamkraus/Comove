@@ -467,6 +467,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     for x in range(0 , np.array(yy).size):
         querystring=((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) \
                       else str(gaiacoord.ra[yy[x]].value+360.0)) + " " + str(gaiacoord.dec[yy[x]].value))
+        print('GALEX query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('GALEX query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querystring)
         galex = Catalogs.query_object(querystring , catalog="Galex" , radius=0.0028)
@@ -488,6 +489,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
+        print('2MASS query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('2MASS query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
         tmass = Irsa.query_region(querycoord,catalog='fp_psc' , radius='0d0m10s')
@@ -581,26 +583,27 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
+        print('WISE query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('WISE query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
     
         wisecat = Irsa.query_region(querycoord,catalog='catwise_2020' , radius='0d0m10s')
         if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w1mpro'] == min(wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -20.0)])))
+            ww = np.where( (wisecat['w1mpro'] == min( wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -10.0)]) ))
             WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
             WISEerr[yy[x],0] = wisecat['w1sigmpro'][ww][0]
         if ((np.where(wisecat['w2mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w2mpro'] == min(wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -20.0)])))
+            ww = np.where( (wisecat['w2mpro'] == min( wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -10.0)]) ))
             WISEmag[yy[x],1] = wisecat['w2mpro'][ww][0]
             WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
-        
+ 
         wisecat = Irsa.query_region(querycoord,catalog='allwise_p3as_psd' , radius='0d0m10s')
         if ((np.where(wisecat['w3mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w3mpro'] == min(wisecat['w3mpro'][np.where(wisecat['w3mpro'] > -20.0)])))
+            ww = np.where( (wisecat['w3mpro'] == min( wisecat['w3mpro'][np.where(wisecat['w3mpro'] > -10.0)]) ))
             WISEmag[yy[x],2] = wisecat['w3mpro'][ww][0]
             WISEerr[yy[x],2] = wisecat['w3sigmpro'][ww][0]
         if ((np.where(wisecat['w4mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w4mpro'] == min(wisecat['w4mpro'][np.where(wisecat['w4mpro'] > -20.0)])))
+            ww = np.where( (wisecat['w4mpro'] == min( wisecat['w4mpro'][np.where(wisecat['w4mpro'] > -10.0)]) ))
             WISEmag[yy[x],3] = wisecat['w4mpro'][ww][0]
             WISEerr[yy[x],3] = wisecat['w4sigmpro'][ww][0]
         
@@ -693,6 +696,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
+        print('ROSAT query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('ROSAT query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
         rosatcat = v.query_region(querycoord , radius='0d1m0s' )
