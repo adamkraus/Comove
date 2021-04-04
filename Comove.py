@@ -232,6 +232,62 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     plt.close('all')
 
 
+    # Create PM plot
+
+
+    zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
+    yy2= zz2[0][np.argsort(sep3d[zz2])]
+    zz3= np.where( (sep3d.value < searchradpc.value) & (sep.degree > 0.00001) )
+
+    figname=outdir + targname.replace(" ", "") + "pmd.png"
+
+    plt.figure(figsize=(12,8),facecolor='w')
+    plt.axis([ (max(r['pmra'][zz2]) + 0.05*np.ptp(r['pmra'][zz2]) ) , \
+           (min(r['pmra'][zz2]) - 0.05*np.ptp(r['pmra'][zz2]) ) , \
+           (min(r['pmdec'][zz2])- 0.05*np.ptp(r['pmra'][zz2]) ) , \
+           (max(r['pmdec'][zz2])+ 0.05*np.ptp(r['pmra'][zz2]) ) ] )
+    plt.rc('xtick', labelsize=16)
+    plt.rc('ytick', labelsize=16)
+
+    if  ((max(r['pmra'][zz2]) + 0.05*np.ptp(r['pmra'][zz2])) > 0.0) & \
+            ((min(r['pmra'][zz2]) - 0.05*np.ptp(r['pmra'][zz2])) < 0.0) & \
+            ((min(r['pmdec'][zz2])- 0.05*np.ptp(r['pmra'][zz2])) < 0.0) & \
+            ((max(r['pmdec'][zz2])+ 0.05*np.ptp(r['pmra'][zz2])) > 0.0):
+        plt.plot( [0.0,0.0] , [-1000.0,1000.0] , 'k--' , linewidth=1 )
+        plt.plot( [-1000.0,1000.0] , [0.0,0.0] , 'k--' , linewidth=1 )
+
+    plt.errorbar( (r['pmra'][yy2]) , (r['pmdec'][yy2]) , \
+            yerr=(r['pmdec_error'][yy2]) , xerr=(r['pmra_error'][yy2]) , fmt='none' , ecolor='k' )
+
+    plt.scatter( (r['pmra'][zz3]) , (r['pmdec'][zz3]) , \
+              s=(0.5)**2 , marker='o' , c='black' , zorder=2 , label='Field' )
+
+    ww = np.where( (r['ruwe'][yy2] < 1.2) )
+    plt.scatter( (r['pmra'][yy2[ww]]) , (r['pmdec'][yy2[ww]]) , \
+              s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+              marker='o' , edgecolors='black' , zorder=2 ,  \
+              vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+
+    ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
+    plt.scatter( (r['pmra'][yy2[ww]]) , (r['pmdec'][yy2[ww]]) , \
+              s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
+              marker='s' , edgecolors='black' , zorder=2 ,  \
+              vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+
+    plt.plot( Pgaia['pmra'][minpos] , Pgaia['pmdec'][minpos] , \
+         'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
+
+    plt.xlabel(r'$\mu_{RA}$ (mas/yr)' , fontsize=22 , labelpad=10)
+    plt.ylabel(r'$\mu_{DEC}$ (mas/yr)' , fontsize=22 , labelpad=10)
+    plt.legend(fontsize=16)
+
+    cb = plt.colorbar()
+    cb.set_label(label='Tangential Velocity Difference (km/s)',fontsize=18 , labelpad=10)
+    plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
+    if showplots == True: plt.show()
+    plt.close('all')
+
+
     # Create RV plot
 
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
@@ -486,18 +542,19 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     print('Searching on neighbors in 2MASS')
 
     for x in range(0 , np.array(yy).size):
-        querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
+        if ( np.isnan(NUVmag[yy[x]]) == False ):
+            querycoord = SkyCoord((str(gaiacoord.ra[yy[x]].value) if (gaiacoord.ra[yy[x]].value > 0) else \
                      str(gaiacoord.ra[yy[x]].value+360.0)) , str(gaiacoord.dec[yy[x]].value) , \
                      unit=(u.deg,u.deg) , frame='icrs')
-        print('2MASS query ',x,' of ',np.array(yy).size, end='\r')
-        if verbose == True: print('2MASS query ',x,' of ',np.array(yy).size)
-        if verbose == True: print(querycoord)
-        tmass = Irsa.query_region(querycoord,catalog='fp_psc' , radius='0d0m10s')
-        if ((np.where(tmass['j_m'] > -10.0)[0]).size > 0):
-            ww = np.where( (tmass['j_m'] == min(tmass['j_m'][np.where(tmass['j_m'] > 0.0)])))
-            Jmag[yy[x]] = tmass['j_m'][ww][0]
-            Jerr[yy[x]] = tmass['j_cmsig'][ww][0]
-            if verbose == True: print(tmass['j_m','j_cmsig'][ww])
+            print('2MASS query ',x,' of ',np.array(yy).size, end='\r')
+            if verbose == True: print('2MASS query ',x,' of ',np.array(yy).size)
+            if verbose == True: print(querycoord)
+            tmass = Irsa.query_region(querycoord,catalog='fp_psc' , radius='0d0m10s')
+            if ((np.where(tmass['j_m'] > -10.0)[0]).size > 0):
+                ww = np.where( (tmass['j_m'] == min(tmass['j_m'][np.where(tmass['j_m'] > 0.0)])))
+                Jmag[yy[x]] = tmass['j_m'][ww][0]
+                Jerr[yy[x]] = tmass['j_cmsig'][ww][0]
+                if verbose == True: print(tmass['j_m','j_cmsig'][ww])
         
 
 
