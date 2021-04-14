@@ -114,13 +114,14 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     # Note, a cut on parallax_error was added because searches at low galactic latitude 
     # return an overwhelming number of noisy sources that scatter into the search volume - ALK 20210325
     print('Querying Gaia for neighbors')
+    plxcut = max( 0.5 , (1000.0/Pcoord.distance.value/10.0) )
     if (searchradpc < Pcoord.distance):
         sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE CONTAINS( \
             POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec), \
             CIRCLE('ICRS'," + str(Pcoord.ra.value) +","+ str(Pcoord.dec.value) +","+ str(searchraddeg.value) +"))\
-            =1 AND parallax>" + str(minpar.value) + " AND parallax_error<0.5;"
+            =1 AND parallax>" + str(minpar.value) + " AND parallax_error<" + str(plxcut) + ";"
     if (searchradpc >= Pcoord.distance):
-        sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE parallax>" + str(minpar.value) + " AND parallax_error<0.5;"
+        sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE parallax>" + str(minpar.value) + " AND parallax_error<" + str(plxcut) + ";"
         print('Note, using all-sky search')
     if verbose == True:
         print(sqltext)
@@ -301,8 +302,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     plt.figure(figsize=(12,8))
     plt.axis([ -20.0 , +20.0, \
-           max((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)))+0.3 , \
-           min((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)))-0.3 ] )
+           max( (r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) ,  0.0 )+0.3 , \
+           min( (r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) , 15.0 )-0.3 ] )
     plt.rc('xtick', labelsize=16)
     plt.rc('ytick', labelsize=16)
 
@@ -327,7 +328,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
            vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
 
     if ( (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) < \
-                                     (max((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)))+0.3) ):
+                                     (max((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)),0.0)+0.3) ):
         plt.plot( [0.0] , (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) , \
                   'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
 
@@ -391,12 +392,12 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     axs[0,1].plot( 1000.0*Pxyz[2] , 1000.0*Pxyz[1] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red')
     axs[1,0].plot( 1000.0*Pxyz[0] , 1000.0*Pxyz[2] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=1 , label = targname)
 
-    axs[0,0].set_xlim( [1000.0*Pxyz[0]-26.0 , 1000.0*Pxyz[0]+26.0] )
-    axs[0,0].set_ylim( [1000.0*Pxyz[1]-26.0 , 1000.0*Pxyz[1]+26.0] )
-    axs[0,1].set_xlim( [1000.0*Pxyz[2]-26.0 , 1000.0*Pxyz[2]+26.0] )
-    axs[0,1].set_ylim( [1000.0*Pxyz[1]-26.0 , 1000.0*Pxyz[1]+26.0] )
-    axs[1,0].set_xlim( [1000.0*Pxyz[0]-26.0 , 1000.0*Pxyz[0]+26.0] )
-    axs[1,0].set_ylim( [1000.0*Pxyz[2]-26.0 , 1000.0*Pxyz[2]+26.0] )
+    axs[0,0].set_xlim( [1000.0*Pxyz[0]-(search_radius+1.0) , 1000.0*Pxyz[0]+(search_radius+1.0)] )
+    axs[0,0].set_ylim( [1000.0*Pxyz[1]-(search_radius+1.0) , 1000.0*Pxyz[1]+(search_radius+1.0)] )
+    axs[0,1].set_xlim( [1000.0*Pxyz[2]-(search_radius+1.0) , 1000.0*Pxyz[2]+(search_radius+1.0)] )
+    axs[0,1].set_ylim( [1000.0*Pxyz[1]-(search_radius+1.0) , 1000.0*Pxyz[1]+(search_radius+1.0)] )
+    axs[1,0].set_xlim( [1000.0*Pxyz[0]-(search_radius+1.0) , 1000.0*Pxyz[0]+(search_radius+1.0)] )
+    axs[1,0].set_ylim( [1000.0*Pxyz[2]-(search_radius+1.0) , 1000.0*Pxyz[2]+(search_radius+1.0)] )
     
     axs[0,0].set_xlabel('X (pc)',fontsize=20,labelpad=10)
     axs[0,0].set_ylabel('Y (pc)',fontsize=20,labelpad=10)
@@ -420,7 +421,9 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
             axs[aa,bb].tick_params(top=True,bottom=True,left=True,right=True,direction='in',labelsize=18)
 
     fig.delaxes(axs[1][1])
-    fig.legend( bbox_to_anchor=(0.84,0.27) , prop={'size': 24})
+    strsize = 26
+    if (len(targname) > 12.0): strsize = np.floor(24 / (len(targname)/14.5))
+    fig.legend( bbox_to_anchor=(0.92,0.27) , prop={'size':strsize})
 
     cbaxes = fig.add_axes([0.55,0.14,0.02,0.34])
     cb = plt.colorbar( cbcolors , cax=cbaxes )
@@ -615,7 +618,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     if (spt[yy[0]] > 5): ax1.plot(spt[yy[0]] , fnuvj[yy[0]] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
 
     ax1.legend(fontsize=20 , loc='lower left')
-    cb = fig.colorbar(ccc)
+    cb = fig.colorbar(ccc , ax=ax1)
     cb.set_label(label='Velocity Offset (km/s)',fontsize=13)
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
@@ -689,8 +692,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     if verbose == True: print('Max y value: ' , (max((W13+W13err)[np.isfinite(W13+W13err)])+0.1) )
     plt.axis([ 5.0 , 24.0 , \
-              max([(min((W13-W13err)[np.isfinite(W13-W13err)])-0.1) , -0.3]) , \
-              max([(max((W13+W13err)[np.isfinite(W13+W13err)])+0.2) , +0.6]) ])
+              max( [(min(np.append((W13-W13err)[np.isfinite(W13-W13err)],-0.1))-0.1) , -0.3]) , \
+              max( [(max(np.append((W13+W13err)[np.isfinite(W13+W13err)],+0.0))+0.2) , +0.6]) ])
 
     ax1 = plt.gca()
     ax2 = ax1.twiny()
