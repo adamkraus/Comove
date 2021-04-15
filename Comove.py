@@ -296,14 +296,13 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     yy2= zz2[0][np.argsort(sep3d[zz2])]
 
     zz3= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
-             (np.isnan(r['dr2_radial_velocity']) == False) & \
+             (np.isnan(r['dr2_radial_velocity']) == False) & (np.isnan(r['phot_g_mean_mag']) == False) & \
              ((r['dr2_radial_velocity']-Gvrpmllpmbb[:,0]) < 20.0) ) # Just to set Y axis
-
 
     plt.figure(figsize=(12,8))
     plt.axis([ -20.0 , +20.0, \
-           max( (r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) ,  0.0 )+0.3 , \
-           min( (r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) , 15.0 )-0.3 ] )
+           max( np.append( np.array(r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) ,  0.0 )) + 0.3 , \
+           min( np.append( np.array(r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) , 15.0 )) - 0.3   ])
     plt.rc('xtick', labelsize=16)
     plt.rc('ytick', labelsize=16)
 
@@ -328,7 +327,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
            vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
 
     if ( (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) < \
-                                     (max((r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)),0.0)+0.3) ):
+                                     (max( np.append( np.array(r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) , 0.0 )) + 0.3) ):
         plt.plot( [0.0] , (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) , \
                   'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
 
