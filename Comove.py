@@ -20,10 +20,12 @@ import cartopy.feature as cfeature
 import matplotlib.ticker as mticker
 from astroquery.mast import Catalogs
 from astroquery.irsa import Irsa
+Irsa.TIMEOUT = 600
 from astropy.coordinates import SkyCoord
 from scipy.interpolate import interp1d
 from scipy.io.idl import readsav
 from astroquery.vizier import Vizier
+Vizier.TIMEOUT = 600
 import os,warnings
 import matplotlib as mpl
 mpl.rcParams['lines.linewidth']   = 2
@@ -528,7 +530,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print('GALEX query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('GALEX query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querystring)
-        galex = Catalogs.query_object(querystring , catalog="Galex" , radius=0.0028)
+        galex = Catalogs.query_object(querystring , catalog="Galex" , radius=0.0028 , TIMEOUT=600)
         if ((np.where(galex['nuv_magerr'] > 0.0)[0]).size > 0):
             ww = np.where( (galex['nuv_magerr'] == min(galex['nuv_magerr'][np.where(galex['nuv_magerr'] > 0.0)])))
             NUVmag[yy[x]] = galex['nuv_mag'][ww][0]
@@ -551,7 +553,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
             print('2MASS query ',x,' of ',np.array(yy).size, end='\r')
             if verbose == True: print('2MASS query ',x,' of ',np.array(yy).size)
             if verbose == True: print(querycoord)
-            tmass = Irsa.query_region(querycoord,catalog='fp_psc' , radius='0d0m10s')
+            tmass = Irsa.query_region(querycoord , catalog='fp_psc' , radius='0d0m10s' )
             if ((np.where(tmass['j_m'] > -10.0)[0]).size > 0):
                 ww = np.where( (tmass['j_m'] == min(tmass['j_m'][np.where(tmass['j_m'] > 0.0)])))
                 Jmag[yy[x]] = tmass['j_m'][ww][0]
@@ -657,6 +659,15 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
             WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
  
         wisecat = Irsa.query_region(querycoord,catalog='allwise_p3as_psd' , radius='0d0m10s')
+        if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0) & (np.isnan(WISEmag[yy[x],0]) == True):			# Note, only if there was no CatWISE counterpart
+            ww = np.where( (wisecat['w1mpro'] == min( wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -10.0)]) ))
+            WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
+            WISEerr[yy[x],0] = wisecat['w1sigmpro'][ww][0]
+        if ((np.where(wisecat['w2mpro'] > -10.0)[0]).size > 0) & (np.isnan(WISEmag[yy[x],1]) == True):			# Note, only if there was no CatWISE counterpart
+        if ((np.where(wisecat['w4mpro'] > -10.0)[0]).size > 0):
+            ww = np.where( (wisecat['w2mpro'] == min( wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -10.0)]) ))
+            WISEmag[yy[x],1] = wisecat['w2mpro'][ww][0]
+            WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
         if ((np.where(wisecat['w3mpro'] > -10.0)[0]).size > 0):
             ww = np.where( (wisecat['w3mpro'] == min( wisecat['w3mpro'][np.where(wisecat['w3mpro'] > -10.0)]) ))
             WISEmag[yy[x],2] = wisecat['w3mpro'][ww][0]
@@ -742,7 +753,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     # Cross-reference with ROSAT
 
-    v = Vizier(columns=["**", "+_R"] , catalog='J/A+A/588/A103/cat2rxs')
+    v = Vizier(columns=["**", "+_R"] , catalog='J/A+A/588/A103/cat2rxs' )
 
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
     yy = zz[0][np.argsort(sep3d[zz])]
