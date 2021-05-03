@@ -84,7 +84,6 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     # Find precise coordinates and distance from Gaia, define search radius and parallax cutoff
     print('Asking Gaia for precise coordinates')
-#    Pgaia = Gaia.query_object_async(coordinate=c, radius=(5.0*u.arcsec))
     sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE CONTAINS( \
                POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec), \
                CIRCLE('ICRS'," + str(c.ra.value) +","+ str(c.dec.value) +","+ str(6.0/3600.0) +"))=1;"
@@ -101,7 +100,6 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                       distance=(1000.0/Pgaia['parallax'][minpos])*u.parsec , frame='icrs' , \
                       radial_velocity=radvel , \
                       pm_ra_cosdec=Pgaia['pmra'][minpos]*u.mas/u.year , pm_dec=Pgaia['pmdec'][minpos]*u.mas/u.year )
-    #                  unit=(u.deg, u.deg , u.parsec ) \
 
     searchraddeg = np.arcsin(searchradpc/Pcoord.distance).to(u.deg)
     minpar = (1000.0 * u.parsec) / (Pcoord.distance + searchradpc) * u.mas
@@ -210,7 +208,6 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     figname=outdir + targname.replace(" ", "") + "cmd.png"
     if verbose == True: print(figname)
-#    plt.figure(figsize=(12,8))
 
     fig,ax1 = plt.subplots(figsize=(12,8))
 
