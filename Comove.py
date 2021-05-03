@@ -212,42 +212,51 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     if verbose == True: print(figname)
     plt.figure(figsize=(12,8))
 
-    plt.plot(    chai[:,1] ,     chai[:,0]  , zorder=1 , label='Cha-I (0-5 Myr)')
-    plt.plot(    usco[:,1] ,     usco[:,0]  , zorder=2 , label='USco (11 Myr)')
-    plt.plot(  tuchor[:,1] ,   tuchor[:,0]  , zorder=3 , label='Tuc-Hor (40 Myr)')
-    plt.plot(pleiades[:,1] , pleiades[:,0]  , zorder=4 , label='Pleiades (125 Myr)')
-    plt.plot( mamajek[:,2] ,  mamajek[:,1]  , zorder=5 , label='Mamajek MS')
+    fig,ax1 = plt.subplots(figsize=(12,8))
+
+    ax1.axis([ math.floor(min(r['bp_rp'][zz])) , \
+               math.ceil(max(r['bp_rp'][zz])), \
+               math.ceil(max((r['phot_g_mean_mag'][zz] - (5.0*np.log10(gaiacoord.distance[zz].value)-5.0))))+1, \
+               math.floor(min((r['phot_g_mean_mag'][zz] - (5.0*np.log10(gaiacoord.distance[zz].value)-5.0))))-1 ] )
+    ax1.set_xlabel(r'$B_p-R_p$ (mag)' , fontsize=16)
+    ax1.set_ylabel(r'$M_G$ (mag)' , fontsize=16)
+    ax1.tick_params(axis='both',which='major',labelsize=12)
+
+    ax2 = ax1.twiny()
+    ax2.set_xlim(ax1.get_xlim())
+    ax2.set_xticks(np.array([ -0.037 , 0.377 , 0.782 , 0.980 , 1.84 , 2.50 , 3.36 , 4.75 ]))
+    ax2.set_xticklabels([ 'A0' , 'F0' , 'G0' , 'K0' , 'M0' , 'M3' , 'M5' , 'M7' ])
+    ax2.set_xlabel('SpT' , fontsize=16, labelpad=15)
+    ax2.tick_params(axis='both',which='major',labelsize=12)
+
+    ax1.plot(    chai[:,1] ,     chai[:,0]  , zorder=1 , label='Cha-I (0-5 Myr)')
+    ax1.plot(    usco[:,1] ,     usco[:,0]  , zorder=2 , label='USco (11 Myr)')
+    ax1.plot(  tuchor[:,1] ,   tuchor[:,0]  , zorder=3 , label='Tuc-Hor (40 Myr)')
+    ax1.plot(pleiades[:,1] , pleiades[:,0]  , zorder=4 , label='Pleiades (125 Myr)')
+    ax1.plot( mamajek[:,2] ,  mamajek[:,1]  , zorder=5 , label='Mamajek MS')
 
     ww = np.where( (r['ruwe'][yy2] < 1.2) )
-    plt.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
+    ccc = ax1.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
     #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
                s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
                marker='o' , edgecolors='black' , zorder=7 ,  \
                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
 
     ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
-    plt.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
+    ax1.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
     #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
                s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
                marker='s' , edgecolors='black' , zorder=8 ,  \
                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
 
-    plt.plot(r['bp_rp'][yy[0]] , (r['phot_g_mean_mag'][yy[0]] - (5.0*np.log10(gaiacoord.distance[yy[0]].value)-5.0)) , \
+    ax1.plot(r['bp_rp'][yy[0]] , (r['phot_g_mean_mag'][yy[0]] - (5.0*np.log10(gaiacoord.distance[yy[0]].value)-5.0)) , \
              'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=9 , label=targname)
 
-    plt.arrow( 1.3 , 2.5 , 0.374, 0.743 , length_includes_head=True , head_width=0.07 , head_length = 0.10 )
-    plt.text(  1.4 , 2.3, r'$A_V=1$' , fontsize=12)
+    ax1.arrow( 1.3 , 2.5 , 0.374, 0.743 , length_includes_head=True , head_width=0.07 , head_length = 0.10 )
+    ax1.text(  1.4 , 2.3, r'$A_V=1$' , fontsize=12)
 
-    plt.axis([ math.floor(min(r['bp_rp'][zz])) , \
-               math.ceil(max(r['bp_rp'][zz])), \
-               math.ceil(max((r['phot_g_mean_mag'][zz] - (5.0*np.log10(gaiacoord.distance[zz].value)-5.0))))+1, \
-               math.floor(min((r['phot_g_mean_mag'][zz] - (5.0*np.log10(gaiacoord.distance[zz].value)-5.0))))-1 ] )
-    plt.ylabel(r'$M_G$ (mag)' , fontsize=16)
-    plt.xlabel(r'$B_p-R_p$ (mag)' , fontsize=16)
-    plt.legend(fontsize=12)
-    plt.rc('xtick', labelsize=12)
-    plt.rc('ytick', labelsize=12)
-    cb = plt.colorbar()
+    ax1.legend(fontsize=12)
+    cb = plt.colorbar(ccc , ax=ax1)
     cb.set_label(label='Velocity Difference (km/s)',fontsize=14)
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
