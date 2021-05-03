@@ -42,7 +42,7 @@ mpl.rcParams['axes.titleweight']='semibold'
 mpl.rcParams['font.weight'] = 'semibold'
 
 
-def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,radec=[None,None],output_directory = None,showplots=False,verbose=False):
+def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,radec=[None,None],output_directory = None,showplots=False,verbose=False,DoGALEX=True,DoWISE=True,DoROSAT=True):
     
     radvel= radial_velocity * u.kilometer / u.second
     
@@ -116,7 +116,12 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     # Note, a cut on parallax_error was added because searches at low galactic latitude 
     # return an overwhelming number of noisy sources that scatter into the search volume - ALK 20210325
     print('Querying Gaia for neighbors')
-    plxcut = max( 0.5 , (1000.0/Pcoord.distance.value/10.0) )
+
+    Pllbb     = bc.radec_to_lb(Pcoord.ra.value , Pcoord.dec.value , degree=True)
+    if ( np.abs(Pllbb[1]) > 10.0): plxcut = max( 0.5 , (1000.0/Pcoord.distance.value/10.0) )
+    else: plxcut = 0.5
+    print('Parallax cut: ',plxcut)
+
     if (searchradpc < Pcoord.distance):
         sqltext = "SELECT * FROM gaiaedr3.gaia_source WHERE CONTAINS( \
             POINT('ICRS',gaiaedr3.gaia_source.ra,gaiaedr3.gaia_source.dec), \
@@ -191,7 +196,12 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     # Create Gaia CMD plot
 
-    mamajek = np.loadtxt(datapath+'/sptGBpRp.txt')
+    mamajek  = np.loadtxt(datapath+'/sptGBpRp.txt')
+    pleiades = np.loadtxt(datapath+'/PleGBpRp.txt')
+    tuchor   = np.loadtxt(datapath+'/TucGBpRp.txt')
+    usco     = np.loadtxt(datapath+'/UScGBpRp.txt')
+    chai     = np.loadtxt(datapath+'/ChaGBpRp.txt')
+
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (np.isnan(r['bp_rp']) == False) ) # Note, this causes an error because NaNs
     yy = zz[0][np.argsort(sep3d[zz])]
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
@@ -201,30 +211,39 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     figname=outdir + targname.replace(" ", "") + "cmd.png"
     if verbose == True: print(figname)
     plt.figure(figsize=(12,8))
-    plt.plot(mamajek[:,2] , mamajek[:,1]  , zorder=1 , label='Mamajek MS')
+
+    plt.plot(    chai[:,1] ,     chai[:,0]  , zorder=1 , label='Cha-I (0-5 Myr)')
+    plt.plot(    usco[:,1] ,     usco[:,0]  , zorder=2 , label='USco (11 Myr)')
+    plt.plot(  tuchor[:,1] ,   tuchor[:,0]  , zorder=3 , label='Tuc-Hor (40 Myr)')
+    plt.plot(pleiades[:,1] , pleiades[:,0]  , zorder=4 , label='Pleiades (125 Myr)')
+    plt.plot( mamajek[:,2] ,  mamajek[:,1]  , zorder=5 , label='Mamajek MS')
+
     ww = np.where( (r['ruwe'][yy2] < 1.2) )
     plt.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
     #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
                s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
-               marker='o' , edgecolors='black' , zorder=2 ,  \
+               marker='o' , edgecolors='black' , zorder=7 ,  \
                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
 
     ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
     plt.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
     #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
                s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
-               marker='s' , edgecolors='black' , zorder=2 ,  \
+               marker='s' , edgecolors='black' , zorder=8 ,  \
                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
 
     plt.plot(r['bp_rp'][yy[0]] , (r['phot_g_mean_mag'][yy[0]] - (5.0*np.log10(gaiacoord.distance[yy[0]].value)-5.0)) , \
-             'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
+             'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=9 , label=targname)
+
+    plt.arrow( 1.3 , 2.5 , 0.374, 0.743 , length_includes_head=True , head_width=0.07 , head_length = 0.10 )
+    plt.text(  1.4 , 2.3, r'$A_V=1$' , fontsize=12)
 
     plt.axis([ math.floor(min(r['bp_rp'][zz])) , \
                math.ceil(max(r['bp_rp'][zz])), \
                math.ceil(max((r['phot_g_mean_mag'][zz] - (5.0*np.log10(gaiacoord.distance[zz].value)-5.0))))+1, \
                math.floor(min((r['phot_g_mean_mag'][zz] - (5.0*np.log10(gaiacoord.distance[zz].value)-5.0))))-1 ] )
-    plt.ylabel('M$_G$ (mag)' , fontsize=16)
-    plt.xlabel('Bp-Rp (mag)' , fontsize=16)
+    plt.ylabel(r'$M_G$ (mag)' , fontsize=16)
+    plt.xlabel(r'$B_p-R_p$ (mag)' , fontsize=16)
     plt.legend(fontsize=12)
     plt.rc('xtick', labelsize=12)
     plt.rc('ytick', labelsize=12)
@@ -334,8 +353,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                   'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
 
 
-    plt.ylabel('M$_G$ (mag)' , fontsize=22 , labelpad=10)
-    plt.xlabel('$v_{r,obs}-v_{r,pred}$ (km/s)' , fontsize=22 , labelpad=10)
+    plt.ylabel(r'$M_G$ (mag)' , fontsize=22 , labelpad=10)
+    plt.xlabel(r'$v_{r,obs}-v_{r,pred}$ (km/s)' , fontsize=22 , labelpad=10)
     plt.legend(fontsize=16)
 
     cb = plt.colorbar()
@@ -400,14 +419,14 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     axs[1,0].set_xlim( [1000.0*Pxyz[0]-(search_radius+1.0) , 1000.0*Pxyz[0]+(search_radius+1.0)] )
     axs[1,0].set_ylim( [1000.0*Pxyz[2]-(search_radius+1.0) , 1000.0*Pxyz[2]+(search_radius+1.0)] )
     
-    axs[0,0].set_xlabel('X (pc)',fontsize=20,labelpad=10)
-    axs[0,0].set_ylabel('Y (pc)',fontsize=20,labelpad=10)
+    axs[0,0].set_xlabel(r'$X$ (pc)',fontsize=20,labelpad=10)
+    axs[0,0].set_ylabel(r'$Y$ (pc)',fontsize=20,labelpad=10)
 
-    axs[1,0].set_xlabel('X (pc)',fontsize=20,labelpad=10)
-    axs[1,0].set_ylabel('Z (pc)',fontsize=20,labelpad=10)
+    axs[1,0].set_xlabel(r'$X$ (pc)',fontsize=20,labelpad=10)
+    axs[1,0].set_ylabel(r'$Z$ (pc)',fontsize=20,labelpad=10)
 
-    axs[0,1].set_xlabel('Z (pc)',fontsize=20,labelpad=10)
-    axs[0,1].set_ylabel('Y (pc)',fontsize=20,labelpad=10)
+    axs[0,1].set_xlabel(r'$Z$ (pc)',fontsize=20,labelpad=10)
+    axs[0,1].set_ylabel(r'$Y$ (pc)',fontsize=20,labelpad=10)
 
     axs[0,0].xaxis.set_ticks_position('top')
     axs[0,1].xaxis.set_ticks_position('top')
@@ -530,12 +549,13 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print('GALEX query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('GALEX query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querystring)
-        galex = Catalogs.query_object(querystring , catalog="Galex" , radius=0.0028 , TIMEOUT=600)
-        if ((np.where(galex['nuv_magerr'] > 0.0)[0]).size > 0):
-            ww = np.where( (galex['nuv_magerr'] == min(galex['nuv_magerr'][np.where(galex['nuv_magerr'] > 0.0)])))
-            NUVmag[yy[x]] = galex['nuv_mag'][ww][0]
-            NUVerr[yy[x]] = galex['nuv_magerr'][ww][0]
-            if verbose == True: print(galex['distance_arcmin','ra','nuv_mag','nuv_magerr'][ww])
+        if (DoGALEX == True): 
+            galex = Catalogs.query_object(querystring , catalog="Galex" , radius=0.0028 , TIMEOUT=600)
+            if ((np.where(galex['nuv_magerr'] > 0.0)[0]).size > 0):
+                ww = np.where( (galex['nuv_magerr'] == min(galex['nuv_magerr'][np.where(galex['nuv_magerr'] > 0.0)])))
+                NUVmag[yy[x]] = galex['nuv_mag'][ww][0]
+                NUVerr[yy[x]] = galex['nuv_magerr'][ww][0]
+                if verbose == True: print(galex['distance_arcmin','ra','nuv_mag','nuv_magerr'][ww])
 
         
     Jmag = np.empty(np.array(r['ra']).size)
@@ -553,12 +573,14 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
             print('2MASS query ',x,' of ',np.array(yy).size, end='\r')
             if verbose == True: print('2MASS query ',x,' of ',np.array(yy).size)
             if verbose == True: print(querycoord)
-            tmass = Irsa.query_region(querycoord , catalog='fp_psc' , radius='0d0m10s' )
-            if ((np.where(tmass['j_m'] > -10.0)[0]).size > 0):
-                ww = np.where( (tmass['j_m'] == min(tmass['j_m'][np.where(tmass['j_m'] > 0.0)])))
-                Jmag[yy[x]] = tmass['j_m'][ww][0]
-                Jerr[yy[x]] = tmass['j_cmsig'][ww][0]
-                if verbose == True: print(tmass['j_m','j_cmsig'][ww])
+            tmass = []
+            if (DoGALEX == True): 
+                tmass = Irsa.query_region(querycoord , catalog='fp_psc' , radius='0d0m10s' )
+                if ((np.where(tmass['j_m'] > -10.0)[0]).size > 0):
+                    ww = np.where( (tmass['j_m'] == min(tmass['j_m'][np.where(tmass['j_m'] > 0.0)])))
+                    Jmag[yy[x]] = tmass['j_m'][ww][0]
+                    Jerr[yy[x]] = tmass['j_cmsig'][ww][0]
+                    if verbose == True: print(tmass['j_m','j_cmsig'][ww])
         
 
 
@@ -596,15 +618,16 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     ax1.set_yscale('log')
     ax1.axis([5.0 , 24.0 , 0.000004 , 0.02])
     ax2 = ax1.twiny()
+    ax2.set_xlim(ax1.get_xlim())
     ax1.set_xticks(np.array([5.0 , 10.0 , 15.0 , 17.0 , 22.0 , 24.0]))
     ax1.set_xticklabels(['G5','K0','K5','M0','M5','M7'])
     ax1.set_xlabel('SpT' , fontsize=20, labelpad=15)
     ax1.tick_params(axis='both',which='major',labelsize=16)
     ax2.set_xticks(np.array([5.0 , 10.0 , 15.0 , 17.0 , 22.0 , 24.0]))
     ax2.set_xticklabels(['0.85','0.98','1.45','1.84','3.36','4.75'])
-    ax2.set_xlabel('Bp-Rp (mag)' , fontsize=20, labelpad=15)
+    ax2.set_xlabel(r'$B_p-R_p$ (mag)' , fontsize=20, labelpad=15)
     ax2.tick_params(axis='both',which='major',labelsize=16)
-    ax1.set_ylabel('F$_\mathrm{NUV}$/F$_\mathrm{J}$' , fontsize=22, labelpad=0)
+    ax1.set_ylabel(r'$F_{NUV}/F_{J}$' , fontsize=22, labelpad=0)
 
     ##Hyades
     hyades = readsav(datapath +'/HYsaved.sav')
@@ -621,7 +644,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     ax1.legend(fontsize=20 , loc='lower left')
     cb = fig.colorbar(ccc , ax=ax1)
     cb.set_label(label='Velocity Offset (km/s)',fontsize=13)
-    plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
+    if (DoGALEX == True): plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
     plt.close('all')
     
@@ -648,34 +671,38 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         if verbose == True: print('WISE query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
     
-        wisecat = Irsa.query_region(querycoord,catalog='catwise_2020' , radius='0d0m10s')
-        if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w1mpro'] == min( wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -10.0)]) ))
-            WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
-            WISEerr[yy[x],0] = wisecat['w1sigmpro'][ww][0]
-        if ((np.where(wisecat['w2mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w2mpro'] == min( wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -10.0)]) ))
-            WISEmag[yy[x],1] = wisecat['w2mpro'][ww][0]
-            WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
+        wisecat = []
+        if (DoWISE == True): 
+            wisecat = Irsa.query_region(querycoord,catalog='catwise_2020' , radius='0d0m10s')
+            if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0):
+                ww = np.where( (wisecat['w1mpro'] == min( wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -10.0)]) ))
+                WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
+                WISEerr[yy[x],0] = wisecat['w1sigmpro'][ww][0]
+            if ((np.where(wisecat['w2mpro'] > -10.0)[0]).size > 0):
+                ww = np.where( (wisecat['w2mpro'] == min( wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -10.0)]) ))
+                WISEmag[yy[x],1] = wisecat['w2mpro'][ww][0]
+                WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
  
-        wisecat = Irsa.query_region(querycoord,catalog='allwise_p3as_psd' , radius='0d0m10s')
-        if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0) & (np.isnan(WISEmag[yy[x],0]) == True):			# Note, only if there was no CatWISE counterpart
-            ww = np.where( (wisecat['w1mpro'] == min( wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -10.0)]) ))
-            WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
-            WISEerr[yy[x],0] = wisecat['w1sigmpro'][ww][0]
-        if ((np.where(wisecat['w2mpro'] > -10.0)[0]).size > 0) & (np.isnan(WISEmag[yy[x],1]) == True):			# Note, only if there was no CatWISE counterpart
-        if ((np.where(wisecat['w4mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w2mpro'] == min( wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -10.0)]) ))
-            WISEmag[yy[x],1] = wisecat['w2mpro'][ww][0]
-            WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
-        if ((np.where(wisecat['w3mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w3mpro'] == min( wisecat['w3mpro'][np.where(wisecat['w3mpro'] > -10.0)]) ))
-            WISEmag[yy[x],2] = wisecat['w3mpro'][ww][0]
-            WISEerr[yy[x],2] = wisecat['w3sigmpro'][ww][0]
-        if ((np.where(wisecat['w4mpro'] > -10.0)[0]).size > 0):
-            ww = np.where( (wisecat['w4mpro'] == min( wisecat['w4mpro'][np.where(wisecat['w4mpro'] > -10.0)]) ))
-            WISEmag[yy[x],3] = wisecat['w4mpro'][ww][0]
-            WISEerr[yy[x],3] = wisecat['w4sigmpro'][ww][0]
+        if (DoWISE == True): 
+            wisecat = Irsa.query_region(querycoord,catalog='allwise_p3as_psd' , radius='0d0m10s')
+            if ((np.where(wisecat['w1mpro'] > -10.0)[0]).size > 0):
+                ww = np.where( (wisecat['w1mpro'] == min( wisecat['w1mpro'][np.where(wisecat['w1mpro'] > -10.0)]) ))
+                if (np.isnan(WISEmag[yy[x],0]) == True) | (wisecat['w1mpro'][ww][0] < 11.0):				# Note, only if CatWISE absent/saturated
+                    WISEmag[yy[x],0] = wisecat['w1mpro'][ww][0]
+                    WISEerr[yy[x],0] = wisecat['w1sigmpro'][ww][0]
+            if ((np.where(wisecat['w2mpro'] > -10.0)[0]).size > 0):
+                ww = np.where( (wisecat['w2mpro'] == min( wisecat['w2mpro'][np.where(wisecat['w2mpro'] > -10.0)]) ))
+                if (np.isnan(WISEmag[yy[x],1]) == True) | (wisecat['w2mpro'][ww][0] < 11.0):				# Note, only if CatWISE absent/saturated
+                    WISEmag[yy[x],1] = wisecat['w2mpro'][ww][0]
+                    WISEerr[yy[x],1] = wisecat['w2sigmpro'][ww][0]
+            if ((np.where(wisecat['w3mpro'] > -10.0)[0]).size > 0):
+                ww = np.where( (wisecat['w3mpro'] == min( wisecat['w3mpro'][np.where(wisecat['w3mpro'] > -10.0)]) ))
+                WISEmag[yy[x],2] = wisecat['w3mpro'][ww][0]
+                WISEerr[yy[x],2] = wisecat['w3sigmpro'][ww][0]
+            if ((np.where(wisecat['w4mpro'] > -10.0)[0]).size > 0):
+                ww = np.where( (wisecat['w4mpro'] == min( wisecat['w4mpro'][np.where(wisecat['w4mpro'] > -10.0)]) ))
+                WISEmag[yy[x],3] = wisecat['w4mpro'][ww][0]
+                WISEerr[yy[x],3] = wisecat['w4sigmpro'][ww][0]
         
         if verbose == True: print(yy[x],WISEmag[yy[x],:],WISEerr[yy[x],:])
 
@@ -716,10 +743,10 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     ax2.set_xticks(np.array([5.0 , 10.0 , 15.0 , 17.0 , 22.0 , 24.0]))
     ax2.set_xticklabels(['0.85','0.98','1.45','1.84','3.36','4.75'])
-    ax2.set_xlabel('Bp-Rp (mag)' , fontsize=20, labelpad=15)
+    ax2.set_xlabel(r'$B_p-R_p$ (mag)' , fontsize=20, labelpad=15)
     ax2.tick_params(axis='both',which='major',labelsize=16)
 
-    ax1.set_ylabel('W1-W3 (mag)' , fontsize=22, labelpad=0)
+    ax1.set_ylabel(r'$W1-W3$ (mag)' , fontsize=22, labelpad=0)
 
 
     # Plot field sequence from Tuc-Hor (Kraus et al. 2014)
@@ -747,7 +774,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     plt.legend(fontsize=20 , loc='upper left')
     cb = plt.colorbar()
     cb.set_label(label='Velocity Offset (km/s)',fontsize=14)
-    plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
+    if (DoWISE == True): plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
     plt.close('all')
 
@@ -769,14 +796,15 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print('ROSAT query ',x,' of ',np.array(yy).size, end='\r')
         if verbose == True: print('ROSAT query ',x,' of ',np.array(yy).size)
         if verbose == True: print(querycoord)
-        rosatcat = v.query_region(querycoord , radius='0d1m0s' )
-        if (len(rosatcat) > 0):
-            rosatcat = rosatcat['J/A+A/588/A103/cat2rxs']
-            if verbose == True: print(rosatcat)
-            if ((np.where(rosatcat['CRate'] > -999)[0]).size > 0):
-                ww = np.where( (rosatcat['CRate'] == max(rosatcat['CRate'][np.where(rosatcat['CRate'] > -999)])))
-                ROSATflux[yy[x]] = rosatcat['CRate'][ww][0]
-            if verbose == True: print(x,yy[x],ROSATflux[yy[x]])
+        if (DoROSAT == True): 
+            rosatcat = v.query_region(querycoord , radius='0d1m0s' )
+            if (len(rosatcat) > 0):
+                rosatcat = rosatcat['J/A+A/588/A103/cat2rxs']
+                if verbose == True: print(rosatcat)
+                if ((np.where(rosatcat['CRate'] > -999)[0]).size > 0):
+                    ww = np.where( (rosatcat['CRate'] == max(rosatcat['CRate'][np.where(rosatcat['CRate'] > -999)])))
+                    ROSATflux[yy[x]] = rosatcat['CRate'][ww][0]
+                if verbose == True: print(x,yy[x],ROSATflux[yy[x]])
 
 
     # Create output table with results
@@ -790,29 +818,31 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     sortlist = np.argsort(sep3d[zz])
     yy = zz[0][sortlist]
 
-    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %4s %8.6f %6.2f %7.3f %7.3f"
-    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %4s %8.6f %6.2f %7.3f %7.3f"
+    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f"
+    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f"
     filename=outdir + targname.replace(" ", "") + ".txt"
     
     warnings.filterwarnings("ignore",category=UserWarning)
     if verbose == True: 
         print('Also creating SIMBAD query table')
         print(filename)
-        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)  SpT    FnuvJ  W1-W3    RUWE  XCrate')
+        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate')
     with open(filename,'w') as file1:
-        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)  SpT    FnuvJ  W1-W3    RUWE  XCrate \n')
+        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate \n')
     for x in range(0 , np.array(zz).size):
             if verbose == True:
                 print(fmt1 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                   r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                   Gchi2[yy[x]] , sep[yy[x]].value , sep3d[yy[x]].value , \
-                  Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , \
+                  Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , r['dr2_radial_velocity_error'][yy[x]] , \
+                  r['parallax'][yy[x]], \
                   sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
             with open(filename,'a') as file1:
                   file1.write(fmt2 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                       r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                       Gchi2[yy[x]],sep[yy[x]].value,sep3d[yy[x]].value , \
-                      Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , \
+                      Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , r['dr2_radial_velocity_error'][yy[x]] , \
+                      r['parallax'][yy[x]], \
                       sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
                   file1.write("\n")
     if verbose == True: print('All output can be found in ' + outdir)
