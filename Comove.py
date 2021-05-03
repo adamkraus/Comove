@@ -210,7 +210,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     figname=outdir + targname.replace(" ", "") + "cmd.png"
     if verbose == True: print(figname)
-    plt.figure(figsize=(12,8))
+#    plt.figure(figsize=(12,8))
 
     fig,ax1 = plt.subplots(figsize=(12,8))
 
