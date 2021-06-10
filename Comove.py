@@ -27,6 +27,7 @@ from scipy.io.idl import readsav
 from astroquery.vizier import Vizier
 Vizier.TIMEOUT = 600
 import os,warnings
+import csv
 import matplotlib as mpl
 mpl.rcParams['lines.linewidth']   = 2
 mpl.rcParams['axes.linewidth']    = 2
@@ -42,7 +43,7 @@ mpl.rcParams['axes.titleweight']='semibold'
 mpl.rcParams['font.weight'] = 'semibold'
 
 
-def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,radec=[None,None],output_directory = None,showplots=False,verbose=False,DoGALEX=True,DoWISE=True,DoROSAT=True):
+def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,rvcut=5.0,radec=[None,None],output_directory = None,showplots=False,verbose=False,DoGALEX=True,DoWISE=True,DoROSAT=True):
     
     radvel= radial_velocity * u.kilometer / u.second
     
@@ -192,6 +193,42 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
         print('Chi^2 values:')
         print(Gchi2)
 
+
+    # Query external list(s) of RVs
+
+    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
+    yy = zz[0][np.argsort(sep3d[zz])]
+    
+    RV    = np.empty(np.array(r['ra']).size)
+    RVerr = np.empty(np.array(r['ra']).size)
+    RVsrc = np.array([ '                             None' for x in range(np.array(r['ra']).size) ])
+    RV[:]    = np.nan
+    RVerr[:] = np.nan
+
+    print('Populating RV table')
+    for x in range(0 , np.array(yy).size):
+        if np.isnan(r['dr2_radial_velocity'][yy[x]]) == False:        # First copy over DR2 RVs
+            RV[yy[x]]    = r['dr2_radial_velocity'][yy[x]]
+            RVerr[yy[x]] = r['dr2_radial_velocity_error'][yy[x]]
+            RVsrc[yy[x]] = 'Gaia DR2'
+    if os.path.isfile('LocalRV.csv'):
+        with open('LocalRV.csv') as csvfile:                          # Now check for a local RV that would supercede
+            readCSV = csv.reader(csvfile, delimiter=',')
+            for row in readCSV:
+                ww = np.where(r['designation'] == row[0])[0]
+                if (np.array(ww).size == 1):
+                    RV[ww]    = row[2]
+                    RVerr[ww] = row[3]
+                    RVsrc[ww] = row[4]
+                    if verbose == True: 
+                        print('Using stored RV: ',row)
+                        print(r['ra','dec','phot_g_mean_mag'][ww])
+                        print(RV[ww])
+                        print(RVerr[ww])
+                        print(RVsrc[ww])
+
+
+
     # Create Gaia CMD plot
 
     mamajek  = np.loadtxt(datapath+'/sptGBpRp.txt')
@@ -203,8 +240,10 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (np.isnan(r['bp_rp']) == False) ) # Note, this causes an error because NaNs
     yy = zz[0][np.argsort(sep3d[zz])]
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
-                 (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) & (np.isnan(r['bp_rp']) == False) ) # Note, this causes an error because NaNs
-    yy2= zz2[0][np.argsort(sep3d[zz2])]
+                 (r['phot_bp_rp_excess_factor'] < (1.3 + 0.06*r['bp_rp']**2)) & \
+                 (np.isnan(r['bp_rp']) == False) )                                                              # Note, this causes an error because NaNs
+    yy2= zz2[0][np.argsort((-Gchi2)[zz2])]
+
 
     figname=outdir + targname.replace(" ", "") + "cmd.png"
     if verbose == True: print(figname)
@@ -221,8 +260,11 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     ax2 = ax1.twiny()
     ax2.set_xlim(ax1.get_xlim())
-    ax2.set_xticks(np.array([ -0.037 , 0.377 , 0.782 , 0.980 , 1.84 , 2.50 , 3.36 , 4.75 ]))
-    ax2.set_xticklabels([ 'A0' , 'F0' , 'G0' , 'K0' , 'M0' , 'M3' , 'M5' , 'M7' ])
+    spttickvals = np.array([ -0.037 , 0.377 , 0.782 , 0.980 , 1.84 , 2.50 , 3.36 , 4.75 ])
+    sptticklabs = np.array([ 'A0' , 'F0' , 'G0' , 'K0' , 'M0' , 'M3' , 'M5' , 'M7' ])
+    xx = np.where( (spttickvals >= math.floor(min(r['bp_rp'][zz]))) & (spttickvals <= math.ceil(max(r['bp_rp'][zz]))) )[0]
+    ax2.set_xticks(spttickvals[xx])
+    ax2.set_xticklabels( sptticklabs[xx] )
     ax2.set_xlabel('SpT' , fontsize=16, labelpad=15)
     ax2.tick_params(axis='both',which='major',labelsize=12)
 
@@ -232,27 +274,41 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     ax1.plot(pleiades[:,1] , pleiades[:,0]  , zorder=4 , label='Pleiades (125 Myr)')
     ax1.plot( mamajek[:,2] ,  mamajek[:,1]  , zorder=5 , label='Mamajek MS')
 
-    ww = np.where( (r['ruwe'][yy2] < 1.2) )
-    ccc = ax1.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
-    #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
-               s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
-               marker='o' , edgecolors='black' , zorder=7 ,  \
-               vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+    for x in range(0 , np.array(yy2).size):
+        msize  = (17-12.0*(sep3d[yy2[x]].value/searchradpc.value))**2
+        mcolor = Gchi2[yy2[x]]
+        medge  = 'black'
+        mzorder= 7
+        if (r['ruwe'][yy2[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy2[x]] >= 1.2):
+            mshape='s'
+        if (np.isnan(rvcut) == False): 
+            if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) > rvcut):
+                mshape='+'
+                mcolor='black'
+                mzorder=6
+            if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) <= rvcut):
+                medge='blue'
 
-    ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
-    ax1.scatter(r['bp_rp'][yy2[ww]] , (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
-    #           s=((17-Gchi2[yy2[ww]]*3)**2) , c=(searchradpc.value*(sep3d[yy2[ww]].value/searchradpc.value)) , \
-               s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
-               marker='s' , edgecolors='black' , zorder=8 ,  \
-               vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+        ccc = ax1.scatter(r['bp_rp'][yy2[x]] , (r['phot_g_mean_mag'][yy2[x]] - (5.0*np.log10(gaiacoord.distance[yy2[x]].value)-5.0)) , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
+
+    temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
+    temp2 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='s' , s=12**2 , label = 'RUWE >= 1.2')
+    temp3 = ax1.scatter([] , [] , c='white' , edgecolors='blue' , marker='o' , s=12**2 , label = 'RV Comoving')
+    temp4 = ax1.scatter([] , [] , c='black' , marker='+' , s=12**2 , label = 'RV Outlier')
 
     ax1.plot(r['bp_rp'][yy[0]] , (r['phot_g_mean_mag'][yy[0]] - (5.0*np.log10(gaiacoord.distance[yy[0]].value)-5.0)) , \
-             'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=9 , label=targname)
+             'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=10 , label=targname)
 
     ax1.arrow( 1.3 , 2.5 , 0.374, 0.743 , length_includes_head=True , head_width=0.07 , head_length = 0.10 )
     ax1.text(  1.4 , 2.3, r'$A_V=1$' , fontsize=12)
 
-    ax1.legend(fontsize=12)
+
+
+    ax1.legend(fontsize=11)
     cb = plt.colorbar(ccc , ax=ax1)
     cb.set_label(label='Velocity Difference (km/s)',fontsize=14)
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
@@ -264,52 +320,65 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
 
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
-    yy2= zz2[0][np.argsort(sep3d[zz2])]
+    yy2= zz2[0][np.argsort((-Gchi2)[zz2])]
     zz3= np.where( (sep3d.value < searchradpc.value) & (sep.degree > 0.00001) )
 
     figname=outdir + targname.replace(" ", "") + "pmd.png"
 
-    plt.figure(figsize=(12,8),facecolor='w')
-    plt.axis([ (max(r['pmra'][zz2]) + 0.05*np.ptp(r['pmra'][zz2]) ) , \
+    fig,ax1 = plt.subplots(figsize=(12,8))
+
+    ax1.axis([ (max(r['pmra'][zz2]) + 0.05*np.ptp(r['pmra'][zz2]) ) , \
            (min(r['pmra'][zz2]) - 0.05*np.ptp(r['pmra'][zz2]) ) , \
            (min(r['pmdec'][zz2])- 0.05*np.ptp(r['pmra'][zz2]) ) , \
            (max(r['pmdec'][zz2])+ 0.05*np.ptp(r['pmra'][zz2]) ) ] )
-    plt.rc('xtick', labelsize=16)
-    plt.rc('ytick', labelsize=16)
+    ax1.tick_params(axis='both',which='major',labelsize=16)
 
     if  ((max(r['pmra'][zz2]) + 0.05*np.ptp(r['pmra'][zz2])) > 0.0) & \
             ((min(r['pmra'][zz2]) - 0.05*np.ptp(r['pmra'][zz2])) < 0.0) & \
             ((min(r['pmdec'][zz2])- 0.05*np.ptp(r['pmra'][zz2])) < 0.0) & \
             ((max(r['pmdec'][zz2])+ 0.05*np.ptp(r['pmra'][zz2])) > 0.0):
-        plt.plot( [0.0,0.0] , [-1000.0,1000.0] , 'k--' , linewidth=1 )
-        plt.plot( [-1000.0,1000.0] , [0.0,0.0] , 'k--' , linewidth=1 )
+        ax1.plot( [0.0,0.0] , [-1000.0,1000.0] , 'k--' , linewidth=1 )
+        ax1.plot( [-1000.0,1000.0] , [0.0,0.0] , 'k--' , linewidth=1 )
 
-    plt.errorbar( (r['pmra'][yy2]) , (r['pmdec'][yy2]) , \
+    ax1.errorbar( (r['pmra'][yy2]) , (r['pmdec'][yy2]) , \
             yerr=(r['pmdec_error'][yy2]) , xerr=(r['pmra_error'][yy2]) , fmt='none' , ecolor='k' )
 
-    plt.scatter( (r['pmra'][zz3]) , (r['pmdec'][zz3]) , \
+    ax1.scatter( (r['pmra'][zz3]) , (r['pmdec'][zz3]) , \
               s=(0.5)**2 , marker='o' , c='black' , zorder=2 , label='Field' )
 
-    ww = np.where( (r['ruwe'][yy2] < 1.2) )
-    plt.scatter( (r['pmra'][yy2[ww]]) , (r['pmdec'][yy2[ww]]) , \
-              s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-              marker='o' , edgecolors='black' , zorder=2 ,  \
-              vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+    for x in range(0 , np.array(yy2).size):
+        msize  = (17-12.0*(sep3d[yy2[x]].value/searchradpc.value))**2
+        mcolor = Gchi2[yy2[x]]
+        medge  = 'black'
+        mzorder= 7
+        if (r['ruwe'][yy2[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy2[x]] >= 1.2):
+            mshape='s'
+        if (np.isnan(rvcut) == False): 
+            if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) > rvcut):
+                mshape='+'
+                mcolor='black'
+                mzorder=6
+            if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) <= rvcut):
+                medge='blue'
+        ccc = ax1.scatter(r['pmra'][yy2[x]] , r['pmdec'][yy2[x]] , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
-    ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
-    plt.scatter( (r['pmra'][yy2[ww]]) , (r['pmdec'][yy2[ww]]) , \
-              s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-              marker='s' , edgecolors='black' , zorder=2 ,  \
-              vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+    temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
+    temp2 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='s' , s=12**2 , label = 'RUWE >= 1.2')
+    temp3 = ax1.scatter([] , [] , c='white' , edgecolors='blue' , marker='o' , s=12**2 , label = 'RV Comoving')
+    temp4 = ax1.scatter([] , [] , c='black' , marker='+' , s=12**2 , label = 'RV Outlier')
 
-    plt.plot( Pgaia['pmra'][minpos] , Pgaia['pmdec'][minpos] , \
+    ax1.plot( Pgaia['pmra'][minpos] , Pgaia['pmdec'][minpos] , \
          'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
 
-    plt.xlabel(r'$\mu_{RA}$ (mas/yr)' , fontsize=22 , labelpad=10)
-    plt.ylabel(r'$\mu_{DEC}$ (mas/yr)' , fontsize=22 , labelpad=10)
-    plt.legend(fontsize=16)
+    ax1.set_xlabel(r'$\mu_{RA}$ (mas/yr)' , fontsize=22 , labelpad=10)
+    ax1.set_ylabel(r'$\mu_{DEC}$ (mas/yr)' , fontsize=22 , labelpad=10)
+    ax1.legend(fontsize=12)
 
-    cb = plt.colorbar()
+    cb = plt.colorbar(ccc , ax=ax1)
     cb.set_label(label='Tangential Velocity Difference (km/s)',fontsize=18 , labelpad=10)
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
@@ -319,51 +388,54 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     # Create RV plot
 
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
-             (np.isnan(r['dr2_radial_velocity']) == False) )
-    yy2= zz2[0][np.argsort(sep3d[zz2])]
+             (np.isnan(RV) == False) )
+    yy2= zz2[0][np.argsort((-Gchi2)[zz2])]
 
     zz3= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & \
-             (np.isnan(r['dr2_radial_velocity']) == False) & (np.isnan(r['phot_g_mean_mag']) == False) & \
-             ((r['dr2_radial_velocity']-Gvrpmllpmbb[:,0]) < 20.0) ) # Just to set Y axis
+             (np.isnan(RV) == False) & (np.isnan(r['phot_g_mean_mag']) == False) & \
+             (np.abs(RV-Gvrpmllpmbb[:,0]) < 20.0) ) # Just to set Y axis
 
-    plt.figure(figsize=(12,8))
-    plt.axis([ -20.0 , +20.0, \
+    fig,ax1 = plt.subplots(figsize=(12,8))
+    ax1.axis([ -20.0 , +20.0, \
            max( np.append( np.array(r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) ,  0.0 )) + 0.3 , \
            min( np.append( np.array(r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) , 15.0 )) - 0.3   ])
-    plt.rc('xtick', labelsize=16)
-    plt.rc('ytick', labelsize=16)
+    ax1.tick_params(axis='both',which='major',labelsize=16)
 
-    plt.plot( [0.0,0.0] , [-20.0,25.0] , 'k--' , linewidth=1 )
+    ax1.plot( [0.0,0.0] , [-20.0,25.0] , 'k--' , linewidth=1 )
 
-    plt.errorbar( (r['dr2_radial_velocity'][yy2]-Gvrpmllpmbb[yy2,0]) , \
+    ax1.errorbar( (RV[yy2]-Gvrpmllpmbb[yy2,0]) , \
            (r['phot_g_mean_mag'][yy2] - (5.0*np.log10(gaiacoord.distance[yy2].value)-5.0)) , \
-            yerr=None,xerr=(r['dr2_radial_velocity_error'][yy2]) , fmt='none' , ecolor='k' )
+            yerr=None,xerr=(RVerr[yy2]) , fmt='none' , ecolor='k' )
 
-    ww = np.where( (r['ruwe'][yy2] < 1.2) )
-    plt.scatter( (r['dr2_radial_velocity'][yy2[ww]]-Gvrpmllpmbb[yy2[ww],0]) , \
-           (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
-           s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
-           marker='o' , edgecolors='black' , zorder=2 ,  \
-           vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+    for x in range(0 , np.array(yy2).size):
+        msize  = (17-12.0*(sep3d[yy2[x]].value/searchradpc.value))**2
+        mcolor = Gchi2[yy2[x]]
+        medge  = 'black'
+        mzorder= 2
+        if (r['ruwe'][yy2[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy2[x]] >= 1.2):
+            mshape='s'
+        ccc = ax1.scatter( (RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) , \
+                (r['phot_g_mean_mag'][yy2[x]] - (5.0*np.log10(gaiacoord.distance[yy2[x]].value)-5.0)) , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
-    ww = np.where( (r['ruwe'][yy2] >= 1.2) )    
-    plt.scatter( (r['dr2_radial_velocity'][yy2[ww]]-Gvrpmllpmbb[yy2[ww],0]) , \
-           (r['phot_g_mean_mag'][yy2[ww]] - (5.0*np.log10(gaiacoord.distance[yy2[ww]].value)-5.0)) , \
-           s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , 
-           marker='s' , edgecolors='black' , zorder=2 ,  \
-           vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+    temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
+    temp2 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='s' , s=12**2 , label = 'RUWE >= 1.2')
+    temp3 = ax1.scatter([] , [] , c='white' , edgecolors='blue' , marker='o' , s=12**2 , label = 'RV Comoving')
 
     if ( (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) < \
                                      (max( np.append( np.array(r['phot_g_mean_mag'][zz3] - (5.0*np.log10(gaiacoord.distance[zz3].value)-5.0)) , 0.0 )) + 0.3) ):
-        plt.plot( [0.0] , (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) , \
+        ax1.plot( [0.0] , (Pgaia['phot_g_mean_mag'][minpos] - (5.0*np.log10(Pcoord.distance.value)-5.0)) , \
                   'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname)
 
 
-    plt.ylabel(r'$M_G$ (mag)' , fontsize=22 , labelpad=10)
-    plt.xlabel(r'$v_{r,obs}-v_{r,pred}$ (km/s)' , fontsize=22 , labelpad=10)
-    plt.legend(fontsize=16)
+    ax1.set_ylabel(r'$M_G$ (mag)' , fontsize=22 , labelpad=10)
+    ax1.set_xlabel(r'$v_{r,obs}-v_{r,pred}$ (km/s)' , fontsize=22 , labelpad=10)
+    ax1.legend(fontsize=12)
 
-    cb = plt.colorbar()
+    cb = plt.colorbar(ccc , ax=ax1)
     cb.set_label(label='Tangential Velocity Difference (km/s)',fontsize=18 , labelpad=10)
 
     figname=outdir + targname.replace(" ", "") + "drv.png"
@@ -384,35 +456,38 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     fig.subplots_adjust(hspace=0.03,wspace=0.03)
 
     zz2= np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
-    yy2= zz2[0][np.argsort(sep3d[zz2])]
+    yy2= zz2[0][np.argsort((-Gchi2)[zz2])]
 
-    ww = np.where( (r['ruwe'][yy2] < 1.2) )
-    cbcolors = axs[0,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],1] , \
-                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-                  marker='o' , edgecolors='black' , zorder=2 , \
-                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
-    axs[0,1].scatter( 1000.0*Gxyz[yy2[ww],2] , 1000.0*Gxyz[yy2[ww],1] , \
-                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-                  marker='o' , edgecolors='black' , zorder=2 , \
-                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
-    axs[1,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],2] , \
-                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-                  marker='o' , edgecolors='black' , zorder=2 , \
-                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE<1.2' )
+    for x in range(0 , np.array(yy2).size):
+        msize  = (17-12.0*(sep3d[yy2[x]].value/searchradpc.value))**2
+        mcolor = Gchi2[yy2[x]]
+        medge  = 'black'
+        mzorder= 3
+        if (r['ruwe'][yy2[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy2[x]] >= 1.2):
+            mshape='s'
+        if (np.isnan(rvcut) == False): 
+            if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) > rvcut):
+                mshape='+'
+                mcolor='black'
+                mzorder=2
+            if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) <= rvcut):
+                medge='blue'
+        ccc = axs[0,0].scatter( 1000.0*Gxyz[yy2[x],0] , 1000.0*Gxyz[yy2[x],1] , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
+        ccc = axs[0,1].scatter( 1000.0*Gxyz[yy2[x],2] , 1000.0*Gxyz[yy2[x],1] , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
+        ccc = axs[1,0].scatter( 1000.0*Gxyz[yy2[x],0] , 1000.0*Gxyz[yy2[x],2] , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
-    ww = np.where( (r['ruwe'][yy2] >= 1.2) )
-    axs[0,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],1] , \
-                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-                  marker='s' , edgecolors='black' , zorder=2 , \
-                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
-    axs[0,1].scatter( 1000.0*Gxyz[yy2[ww],2] , 1000.0*Gxyz[yy2[ww],1] , \
-                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-                  marker='s' , edgecolors='black' , zorder=2 , \
-                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' )
-    axs[1,0].scatter( 1000.0*Gxyz[yy2[ww],0] , 1000.0*Gxyz[yy2[ww],2] , \
-                  s=(17-12.0*(sep3d[yy2[ww]].value/searchradpc.value))**2 , c=Gchi2[yy2[ww]] , \
-                  marker='s' , edgecolors='black' , zorder=3 , \
-                  vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='RUWE>1.2' )
+    temp1 = axs[0,0].scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
+    temp2 = axs[0,0].scatter([] , [] , c='white' , edgecolors='black', marker='s' , s=12**2 , label = 'RUWE >= 1.2')
+    temp3 = axs[0,0].scatter([] , [] , c='white' , edgecolors='blue' , marker='o' , s=12**2 , label = 'RV Comoving')
+    temp4 = axs[0,0].scatter([] , [] , c='black' , marker='+' , s=12**2 , label = 'RV Outlier')
 
     axs[0,0].plot( 1000.0*Pxyz[0] , 1000.0*Pxyz[1] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red')
     axs[0,1].plot( 1000.0*Pxyz[2] , 1000.0*Pxyz[1] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red')
@@ -449,10 +524,10 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     fig.delaxes(axs[1][1])
     strsize = 26
     if (len(targname) > 12.0): strsize = np.floor(24 / (len(targname)/14.5))
-    fig.legend( bbox_to_anchor=(0.92,0.27) , prop={'size':strsize})
+    fig.legend( bbox_to_anchor=(0.92,0.37) , prop={'size':strsize})
 
     cbaxes = fig.add_axes([0.55,0.14,0.02,0.34])
-    cb = plt.colorbar( cbcolors , cax=cbaxes )
+    cb = plt.colorbar( ccc , cax=cbaxes )
     cb.set_label( label='Velocity Difference (km/s)' , fontsize=24 , labelpad=20 )
     cb.ax.tick_params(labelsize=18)
 
@@ -479,8 +554,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     LATITUDE_FORMATTER = mticker.FuncFormatter(lambda v, pos:
                                                _north_south_formatted(v))
 
-    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
-    yy = zz[0][np.argsort(sep3d[zz])]
+    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
+    yy = zz[0][np.argsort((-Gchi2)[zz])]
 
     searchcircle = Pcoord.directional_offset_by( (np.arange(0,360)*u.degree) , searchraddeg*np.ones(360))
     circleRA = searchcircle.ra.value
@@ -516,20 +591,29 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     figname=outdir + targname.replace(" ", "") + "sky.png"
 
     base=plt.cm.get_cmap('cubehelix')
-    for x in range(1 , np.array(yy).size):
-            ax.plot( RAlist[x] , DElist[x] , markeredgecolor='black' , \
-                marker=('o' if (r['ruwe'][yy[x]] <1.2) else 's') , \
-    #            ms=(17-Gchi2[yy[x]]*3) , \
-    #            mfc=base((sep3d[yy[x]].value/searchradpc.value)) , \
-                ms=(17-12.0*(sep3d[yy[x]].value/searchradpc.value)) , \
-                mfc=base(Gchi2[yy[x]]/vlim.value) , \
-                transform=ccrs.Geodetic())
+
+    for x in range(0 , np.array(yy).size):
+        msize  = (17-12.0*(sep3d[yy[x]].value/searchradpc.value))
+        mcolor = base(Gchi2[yy[x]]/vlim.value)
+        medge  = 'black'
+        mzorder= 3
+        if (r['ruwe'][yy[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy[x]] >= 1.2):
+            mshape='s'
+        if (np.isnan(rvcut) == False): 
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) > rvcut):
+                mshape='+'
+                mcolor='black'
+                mzorder=2
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) <= rvcut):
+                medge='blue'
+        ccc = ax.plot( RAlist[x] , DElist[x] , marker=mshape ,  \
+                markeredgecolor=medge , ms = msize , mfc = mcolor , transform=ccrs.Geodetic() )
         
     ax.plot( (Pcoord.ra.value-360.0) , Pcoord.dec.value , \
             'rx' , markersize=18 , mew=3 , transform=ccrs.Geodetic())
 
-    #cb = plt.colorbar()
-    #cb.set_label(label='Velocity Difference (km/s)',fontsize=14)
     plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     
     if showplots == True: plt.show()
@@ -538,7 +622,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     ## Query GALEX and 2MASS data
 
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
-    yy = zz[0][np.argsort(sep3d[zz])]
+    yy = zz[0][np.argsort((-Gchi2)[zz])]
     
     NUVmag = np.empty(np.array(r['ra']).size)
     NUVerr = np.empty(np.array(r['ra']).size)
@@ -593,33 +677,37 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     # Create GALEX plots
     mamajek = np.loadtxt(datapath+'/sptGBpRp.txt')
     f = interp1d( mamajek[:,2] , mamajek[:,0] , kind='cubic')
-    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
-    yy = zz[0][np.argsort(sep3d[zz])]
+
+    zz2 = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
+    yy2 = zz[0][np.argsort(sep3d[zz])]
+    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
+    yy = zz[0][np.argsort((-Gchi2)[zz])]
 
     fnuvj = (3631.0 * 10**6 * 10**(-0.4 * NUVmag)) / (1594.0 * 10**6 * 10**(-0.4 * Jmag))
     spt = f(r['bp_rp'].filled(np.nan))
     sptstring = ["nan" for x in range(np.array(r['bp_rp']).size)]
-    for x in range(0 , np.array(zz).size):
-        if (round(spt[yy[x]],1) >= 17.0) and (round(spt[yy[x]],1) < 27.0):
-            sptstring[yy[x]] = 'M' + ('% 3.1f' % (round(spt[yy[x]],1)-17.0)).strip()
-        if (round(spt[yy[x]],1) >= 16.0) and (round(spt[yy[x]],1) < 17.0):
-            sptstring[yy[x]] = 'K' + ('% 3.1f' % (round(spt[yy[x]],1)-9.0)).strip()
-        if (round(spt[yy[x]],1) >= 10.0) and (round(spt[yy[x]],1) < 16.0):
-            sptstring[yy[x]] = 'K' + ('% 3.1f' % (round(spt[yy[x]],1)-10.0)).strip()
-        if (round(spt[yy[x]],1) >= 0.0) and (round(spt[yy[x]],1) < 10.0):
-            sptstring[yy[x]] = 'G' + ('% 3.1f' % (round(spt[yy[x]],1)-0.0)).strip()
-        if (round(spt[yy[x]],1) >= -10.0) and (round(spt[yy[x]],1) < 0.0):
-            sptstring[yy[x]] = 'F' + ('% 3.1f' % (round(spt[yy[x]],1)+10.0)).strip()
-        if (round(spt[yy[x]],1) >= -20.0) and (round(spt[yy[x]],1) < -10.0):
-            sptstring[yy[x]] = 'A' + ('% 3.1f' % (round(spt[yy[x]],1)+20.0)).strip()       
-        if (round(spt[yy[x]],1) >= -30.0) and (round(spt[yy[x]],1) < -20.0):
-            sptstring[yy[x]] = 'B' + ('% 3.1f' % (round(spt[yy[x]],1)+30.0)).strip()  
+    for x in range(0 , np.array(zz2).size):
+        if (round(spt[yy2[x]],1) >= 17.0) and (round(spt[yy2[x]],1) < 27.0):
+            sptstring[yy2[x]] = 'M' + ('% 3.1f' % (round(spt[yy2[x]],1)-17.0)).strip()
+        if (round(spt[yy2[x]],1) >= 16.0) and (round(spt[yy2[x]],1) < 17.0):
+            sptstring[yy2[x]] = 'K' + ('% 3.1f' % (round(spt[yy2[x]],1)-9.0)).strip()
+        if (round(spt[yy2[x]],1) >= 10.0) and (round(spt[yy2[x]],1) < 16.0):
+            sptstring[yy2[x]] = 'K' + ('% 3.1f' % (round(spt[yy2[x]],1)-10.0)).strip()
+        if (round(spt[yy2[x]],1) >= 0.0) and (round(spt[yy2[x]],1) < 10.0):
+            sptstring[yy2[x]] = 'G' + ('% 3.1f' % (round(spt[yy2[x]],1)-0.0)).strip()
+        if (round(spt[yy2[x]],1) >= -10.0) and (round(spt[yy2[x]],1) < 0.0):
+            sptstring[yy2[x]] = 'F' + ('% 3.1f' % (round(spt[yy2[x]],1)+10.0)).strip()
+        if (round(spt[yy2[x]],1) >= -20.0) and (round(spt[yy2[x]],1) < -10.0):
+            sptstring[yy2[x]] = 'A' + ('% 3.1f' % (round(spt[yy2[x]],1)+20.0)).strip()       
+        if (round(spt[yy2[x]],1) >= -30.0) and (round(spt[yy2[x]],1) < -20.0):
+            sptstring[yy2[x]] = 'B' + ('% 3.1f' % (round(spt[yy2[x]],1)+30.0)).strip()  
     
 
 
     figname=outdir + targname.replace(" ", "") + "galex.png"
     if verbose == True: print(figname)
     ##Muck with the axis to get two x axes
+
     fig,ax1 = plt.subplots(figsize=(12,8))
     ax1.set_yscale('log')
     ax1.axis([5.0 , 24.0 , 0.000004 , 0.02])
@@ -638,16 +726,39 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     ##Hyades
     hyades = readsav(datapath +'/HYsaved.sav')
     hyadesfnuvj = (3631.0 * 10**6 * 10**(-0.4 * hyades['clnuv'])) / (1594.0 * 10**6 * 10**(-0.4 * hyades['clJ']))
-    ax1.plot(hyades['clspt'] , hyadesfnuvj , 'x' , markersize=5 , mew=1 , markeredgecolor='black' , zorder=1 , label='Hyades' )
-    ww = np.where( (r['ruwe'][yy[1:]] < 1.2) )
-    ccc = ax1.scatter(spt[yy[1:][ww]] , fnuvj[yy[1:][ww]] , s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , marker='o' , edgecolors='black' , zorder=2 , vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE < 1.2" )
-    ww = np.where( (r['ruwe'][yy[1:]] >= 1.2) )
-    ax1.scatter(spt[yy[1:][ww]] , fnuvj[yy[1:][ww]] ,  s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , marker='s' , edgecolors='black' , zorder=2 , vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE > 1.2" )
+    ax1.plot(hyades['clspt'] , hyadesfnuvj , 'x' , markersize=4 , mew=1 , markeredgecolor='black' , zorder=1 , label='Hyades' )
+
+    for x in range(0 , np.array(yy).size):
+        msize  = (17-12.0*(sep3d[yy[x]].value/searchradpc.value))**2
+        mcolor = Gchi2[yy[x]]
+        medge  = 'black'
+        mzorder= 3
+        if (r['ruwe'][yy[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy[x]] >= 1.2):
+            mshape='s'
+        if (np.isnan(rvcut) == False): 
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) > rvcut):
+                mshape='+'
+                mcolor='black'
+                mzorder=2
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) <= rvcut):
+                medge='blue'
+        ccc = ax1.scatter( spt[yy[x]] , fnuvj[yy[x]] , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
+
+    temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
+    temp2 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='s' , s=12**2 , label = 'RUWE >= 1.2')
+    temp3 = ax1.scatter([] , [] , c='white' , edgecolors='blue' , marker='o' , s=12**2 , label = 'RV Comoving')
+    temp4 = ax1.scatter([] , [] , c='black' , marker='+' , s=12**2 , label = 'RV Outlier')
+
+
 
     # Plot science target
     if (spt[yy[0]] > 5): ax1.plot(spt[yy[0]] , fnuvj[yy[0]] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
 
-    ax1.legend(fontsize=20 , loc='lower left')
+    ax1.legend(fontsize=16 , loc='lower left')
     cb = fig.colorbar(ccc , ax=ax1)
     cb.set_label(label='Velocity Offset (km/s)',fontsize=13)
     if (DoGALEX == True): plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
@@ -658,7 +769,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     # Query CatWISE for W1+W2 and AllWISE for W3+W4
 
     zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
-    yy = zz[0][np.argsort(sep3d[zz])]
+    yy = zz[0][np.argsort((-Gchi2)[zz])]
 
     WISEmag = np.empty([np.array(r['ra']).size,4])
     WISEerr = np.empty([np.array(r['ra']).size,4])
@@ -726,17 +837,22 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     W13err[zz] = np.nan
     warnings.filterwarnings("default",category=UserWarning)
 
-    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) )
-    yy = zz[0][np.argsort(sep3d[zz])]
+
+
+
+    zz2 = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value))
+    yy2 = zz[0][np.argsort(sep3d[zz])]
+    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) )
+    yy = zz[0][np.argsort((-Gchi2)[zz])]
 
     figname=outdir + targname.replace(" ", "") + "wise.png"
     if verbose == True: print(figname)
     plt.figure(figsize=(12,8))
 
-    if verbose == True: print('Max y value: ' , (max((W13+W13err)[np.isfinite(W13+W13err)])+0.1) )
+    if (verbose == True) & ((np.where(np.isfinite(W13+W13err))[0]).size > 0): print('Max y value: ' , (max((W13+W13err)[np.isfinite(W13+W13err)])+0.1) )
     plt.axis([ 5.0 , 24.0 , \
-              max( [(min(np.append((W13-W13err)[np.isfinite(W13-W13err)],-0.1))-0.1) , -0.3]) , \
-              max( [(max(np.append((W13+W13err)[np.isfinite(W13+W13err)],+0.0))+0.2) , +0.6]) ])
+              max( [(min(np.append((W13-W13err)[ np.isfinite(W13-W13err) ],-0.1))-0.1) , -0.3]) , \
+              max( [(max(np.append((W13+W13err)[ np.isfinite(W13+W13err) ],+0.0))+0.2) , +0.6]) ])
 
     ax1 = plt.gca()
     ax2 = ax1.twiny()
@@ -754,31 +870,47 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     ax1.set_ylabel(r'$W1-W3$ (mag)' , fontsize=22, labelpad=0)
 
-
     # Plot field sequence from Tuc-Hor (Kraus et al. 2014)
     fldspt = [ 5 , 7 , 10 , 12 , 15 , 17 , 20 , 22 , 24 ]
     fldW13 = [ 0 , 0 ,  0 , .02, .06, .12, .27, .40, .60]
     plt.plot(fldspt , fldW13  , zorder=0 , label='Photosphere')
 
     # Plot neighbors
-    plt.errorbar( spt[yy] , W13[yy] , yerr=W13err[yy] , fmt='.k' , zorder=1)
-    ww = np.where( (r['ruwe'][yy[1:]] < 1.2) )
-    plt.scatter(spt[yy[1:][ww]] , W13[yy[1:][ww]] , \
-               s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , 
-               marker='o' , edgecolors='black' , zorder=2 ,  \
-               vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE < 1.2" )
-    ww = np.where( (r['ruwe'][yy[1:]] >= 1.2) )
-    plt.scatter(spt[yy[1:][ww]] , W13[yy[1:][ww]] , \
-               s=(17-12.0*(sep3d[yy[1:][ww]].value/searchradpc.value))**2 , c=Gchi2[yy[1:][ww]] , 
-               marker='s' , edgecolors='black' , zorder=2 ,  \
-               vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label="RUWE > 1.2" )
+    ax1.errorbar( spt[yy] , W13[yy] , yerr=W13err[yy] , fmt='none' , ecolor='k')
+
+
+    for x in range(0 , np.array(yy).size):
+        msize  = (17-12.0*(sep3d[yy[x]].value/searchradpc.value))**2
+        mcolor = Gchi2[yy[x]]
+        medge  = 'black'
+        mzorder= 3
+        if (r['ruwe'][yy[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy[x]] >= 1.2):
+            mshape='s'
+        if (np.isnan(rvcut) == False): 
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) > rvcut):
+                mshape='+'
+                mcolor='black'
+                mzorder=2
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) <= rvcut):
+                medge='blue'
+        ccc = ax1.scatter( spt[yy[x]] , W13[yy[x]] , \
+                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+                vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
+
+    temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
+    temp2 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='s' , s=12**2 , label = 'RUWE >= 1.2')
+    temp3 = ax1.scatter([] , [] , c='white' , edgecolors='blue' , marker='o' , s=12**2 , label = 'RV Comoving')
+    temp4 = ax1.scatter([] , [] , c='black' , marker='+' , s=12**2 , label = 'RV Outlier')
+
 
     # Plot science target
-    if (spt[yy[0]] > 5):
-        plt.plot(spt[yy[0]] , W13[yy[0]] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
+    if (spt[yy2[0]] > 5):
+        plt.plot(spt[yy2[0]] , W13[yy2[0]] , 'rx' , markersize=18 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
 
-    plt.legend(fontsize=20 , loc='upper left')
-    cb = plt.colorbar()
+    plt.legend(fontsize=16 , loc='upper left')
+    cb = plt.colorbar(ccc , ax=ax1)
     cb.set_label(label='Velocity Offset (km/s)',fontsize=14)
     if (DoWISE == True): plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
     if showplots == True: plt.show()
@@ -824,32 +956,49 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     sortlist = np.argsort(sep3d[zz])
     yy = zz[0][sortlist]
 
-    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f"
-    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f"
+    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f %35s"
+    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f %35s"
     filename=outdir + targname.replace(" ", "") + ".txt"
     
     warnings.filterwarnings("ignore",category=UserWarning)
     if verbose == True: 
         print('Also creating SIMBAD query table')
         print(filename)
-        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate')
+        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate RVsrc')
     with open(filename,'w') as file1:
-        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate \n')
+        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate RVsrc \n')
     for x in range(0 , np.array(zz).size):
             if verbose == True:
                 print(fmt1 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                   r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                   Gchi2[yy[x]] , sep[yy[x]].value , sep3d[yy[x]].value , \
-                  Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , r['dr2_radial_velocity_error'][yy[x]] , \
+                  Gvrpmllpmbb[yy[x],0] , RV[yy[x]] , RVerr[yy[x]] , \
                   r['parallax'][yy[x]], \
-                  sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
+                  sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]] , RVsrc[yy[x]]) )
             with open(filename,'a') as file1:
                   file1.write(fmt2 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                       r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                       Gchi2[yy[x]],sep[yy[x]].value,sep3d[yy[x]].value , \
-                      Gvrpmllpmbb[yy[x],0] , r['dr2_radial_velocity'][yy[x]] , r['dr2_radial_velocity_error'][yy[x]] , \
+                      Gvrpmllpmbb[yy[x],0] , RV[yy[x]] , RVerr[yy[x]] , \
                       r['parallax'][yy[x]], \
-                      sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]]) )
+                      sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]] , RVsrc[yy[x]]) )
                   file1.write("\n")
+
+    filename=outdir + targname.replace(" ", "") + ".csv"
+    with open(filename,mode='w') as result_file:
+        wr = csv.writer(result_file)
+        wr.writerow(['RA','DEC','Gmag','Bp-Rp','Voff(km/s)','Sep(deg)','3D(pc)','Vr(pred)','Vr(obs)','Vrerr','Plx(mas)','SpT','FnuvJ','W1-W3','RUWE','XCrate','RVsrc'])
+        for x in range(0 , np.array(zz).size):
+            wr.writerow(( "{0:.7f}".format(gaiacoord.ra[yy[x]].value) , "{0:.7f}".format(gaiacoord.dec[yy[x]].value) , \
+                      "{0:.3f}".format(r['phot_g_mean_mag'][yy[x]]), "{0:.3f}".format(r['bp_rp'][yy[x]]) , \
+                      "{0:.3f}".format(Gchi2[yy[x]]) , "{0:.4f}".format(sep[yy[x]].value) , "{0:.4f}".format(sep3d[yy[x]].value) , \
+                      "{0:.2f}".format(Gvrpmllpmbb[yy[x],0]) , "{0:.2f}".format(RV[yy[x]]) , "{0:.2f}".format(RVerr[yy[x]]) , \
+                      "{0:.3f}".format(r['parallax'][yy[x]]), \
+                      sptstring[yy[x]] , "{0:.6f}".format(fnuvj[yy[x]]) , "{0:.2f}".format(W13[yy[x]]) , \
+                      "{0:.3f}".format(r['ruwe'][yy[x]]) , "{0:.3f}".format(ROSATflux[yy[x]]) , RVsrc[yy[x]].strip()) )
+
     if verbose == True: print('All output can be found in ' + outdir)
+
+
+
     return outdir
