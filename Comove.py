@@ -291,8 +291,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
             if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) <= rvcut):
                 medge='blue'
 
-        ccc = ax1.scatter(r['bp_rp'][yy2[x]] , (r['phot_g_mean_mag'][yy2[x]] - (5.0*np.log10(gaiacoord.distance[yy2[x]].value)-5.0)) , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = ax1.scatter([ r['bp_rp'][yy2[x]] ] , [ (r['phot_g_mean_mag'][yy2[x]] - (5.0*np.log10(gaiacoord.distance[yy2[x]].value)-5.0)) ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
     temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
@@ -362,8 +362,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                 mzorder=6
             if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) <= rvcut):
                 medge='blue'
-        ccc = ax1.scatter(r['pmra'][yy2[x]] , r['pmdec'][yy2[x]] , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = ax1.scatter([ r['pmra'][yy2[x]] ], [ r['pmdec'][yy2[x]] ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
     temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
@@ -416,9 +416,9 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
             mshape='o'
         if (r['ruwe'][yy2[x]] >= 1.2):
             mshape='s'
-        ccc = ax1.scatter( (RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) , \
-                (r['phot_g_mean_mag'][yy2[x]] - (5.0*np.log10(gaiacoord.distance[yy2[x]].value)-5.0)) , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = ax1.scatter( [ (RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) ] , \
+                [ (r['phot_g_mean_mag'][yy2[x]] - (5.0*np.log10(gaiacoord.distance[yy2[x]].value)-5.0)) ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
     temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
@@ -474,14 +474,14 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                 mzorder=2
             if (np.isnan(RV[yy2[x]])==False) & (np.abs(RV[yy2[x]]-Gvrpmllpmbb[yy2[x],0]) <= rvcut):
                 medge='blue'
-        ccc = axs[0,0].scatter( 1000.0*Gxyz[yy2[x],0] , 1000.0*Gxyz[yy2[x],1] , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = axs[0,0].scatter( [ 1000.0*Gxyz[yy2[x],0] ] , [ 1000.0*Gxyz[yy2[x],1] ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
-        ccc = axs[0,1].scatter( 1000.0*Gxyz[yy2[x],2] , 1000.0*Gxyz[yy2[x],1] , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = axs[0,1].scatter( [ 1000.0*Gxyz[yy2[x],2] ] , [ 1000.0*Gxyz[yy2[x],1] ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
-        ccc = axs[1,0].scatter( 1000.0*Gxyz[yy2[x],0] , 1000.0*Gxyz[yy2[x],2] , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = axs[1,0].scatter( [ 1000.0*Gxyz[yy2[x],0] ] , [ 1000.0*Gxyz[yy2[x],2] ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
     temp1 = axs[0,0].scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
@@ -744,8 +744,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                 mzorder=2
             if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) <= rvcut):
                 medge='blue'
-        ccc = ax1.scatter( spt[yy[x]] , fnuvj[yy[x]] , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = ax1.scatter( [ spt[yy[x]] ] , [ fnuvj[yy[x]] ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
     temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
@@ -895,8 +895,8 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
                 mzorder=2
             if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) <= rvcut):
                 medge='blue'
-        ccc = ax1.scatter( spt[yy[x]] , W13[yy[x]] , \
-                s=msize , c=mcolor , marker=mshape , edgecolors=medge , zorder=mzorder , \
+        ccc = ax1.scatter( [ spt[yy[x]] ] , [ W13[yy[x]] ] , \
+                s=msize , c=[mcolor] , marker=mshape , edgecolors=medge , zorder=mzorder , \
                 vmin=0.0 , vmax=vlim.value , cmap='cubehelix' , label='_nolabel' )
 
     temp1 = ax1.scatter([] , [] , c='white' , edgecolors='black', marker='o' , s=12**2 , label = 'RUWE < 1.2')
