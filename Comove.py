@@ -1155,27 +1155,27 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     sortlist = np.argsort(sep3d[zz])
     yy = zz[0][sortlist]
 
-    fmt1 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f %35s"
-    fmt2 = "%11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f %35s"
+    fmt1 = "%28s %11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f %35s"
+    fmt2 = "%28s %11.7f %11.7f %6.3f %6.3f %11.3f %8.4f %8.4f %8.2f %8.2f %8.2f %8.3f %4s %8.6f %6.2f %7.3f %7.3f %35s"
     filename=outdir + targname.replace(" ", "") + ".txt"
     
     warnings.filterwarnings("ignore",category=UserWarning)
     if verbose == True: 
         print('Also creating SIMBAD query table')
         print(filename)
-        print('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate RVsrc')
+        print('Gaia DR3                              RA         DEC   Gmag  Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate RVsrc')
     with open(filename,'w') as file1:
-        file1.write('RA            DEC        Gmag   Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate RVsrc \n')
+        file1.write('Gaia DR3                              RA         DEC   Gmag  Bp-Rp  Voff(km/s) Sep(deg)   3D(pc) Vr(pred)  Vr(obs)    Vrerr Plx(mas)  SpT    FnuvJ  W1-W3    RUWE  XCrate RVsrc \n')
     for x in range(0 , np.array(zz).size):
             if verbose == True:
-                print(fmt1 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
+                print(fmt1 % (r['DESIGNATION'][yy[x]],gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                   r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                   Gchi2[yy[x]] , sep[yy[x]].value , sep3d[yy[x]].value , \
                   Gvrpmllpmbb[yy[x],0] , RV[yy[x]] , RVerr[yy[x]] , \
                   r['parallax'][yy[x]], \
                   sptstring[yy[x]] , fnuvj[yy[x]] , W13[yy[x]] , r['ruwe'][yy[x]] , ROSATflux[yy[x]] , RVsrc[yy[x]]) )
             with open(filename,'a') as file1:
-                  file1.write(fmt2 % (gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
+                  file1.write(fmt2 % (r['DESIGNATION'][yy[x]],gaiacoord.ra[yy[x]].value,gaiacoord.dec[yy[x]].value, \
                       r['phot_g_mean_mag'][yy[x]], r['bp_rp'][yy[x]] , \
                       Gchi2[yy[x]],sep[yy[x]].value,sep3d[yy[x]].value , \
                       Gvrpmllpmbb[yy[x],0] , RV[yy[x]] , RVerr[yy[x]] , \
@@ -1186,9 +1186,9 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     filename=outdir + targname.replace(" ", "") + ".csv"
     with open(filename,mode='w') as result_file:
         wr = csv.writer(result_file)
-        wr.writerow(['RA','DEC','Gmag','Bp-Rp','Voff(km/s)','Sep(deg)','3D(pc)','Vr(pred)','Vr(obs)','Vrerr','Plx(mas)','SpT','FnuvJ','W1-W3','RUWE','XCrate','RVsrc'])
+        wr.writerow(['Gaia DR3','RA','DEC','Gmag','Bp-Rp','Voff(km/s)','Sep(deg)','3D(pc)','Vr(pred)','Vr(obs)','Vrerr','Plx(mas)','SpT','FnuvJ','W1-W3','RUWE','XCrate','RVsrc'])
         for x in range(0 , np.array(zz).size):
-            wr.writerow(( "{0:.7f}".format(gaiacoord.ra[yy[x]].value) , "{0:.7f}".format(gaiacoord.dec[yy[x]].value) , \
+            wr.writerow(( r['DESIGNATION'][yy[x]].strip() , "{0:.7f}".format(gaiacoord.ra[yy[x]].value) , "{0:.7f}".format(gaiacoord.dec[yy[x]].value) , \
                       "{0:.3f}".format(r['phot_g_mean_mag'][yy[x]]), "{0:.3f}".format(r['bp_rp'][yy[x]]) , \
                       "{0:.3f}".format(Gchi2[yy[x]]) , "{0:.4f}".format(sep[yy[x]].value) , "{0:.4f}".format(sep3d[yy[x]].value) , \
                       "{0:.2f}".format(Gvrpmllpmbb[yy[x],0]) , "{0:.2f}".format(RV[yy[x]]) , "{0:.2f}".format(RVerr[yy[x]]) , \
@@ -1227,7 +1227,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     print(mamaurl)
     print('Go there and read the warnings. Note, they come after the spells.')
     print()
-    print('You should also footnote the date that the compilation was accessed:')
+    print('You should also footnote the date that the compilation was accessed.')
 
     for i in range(0,3):
         txt = mamafile.readline()
@@ -1283,7 +1283,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     logg_Mama = np.log10( 27400.0 * M_Mama / R_Mama**2)
     print('Done parsing Mamajek table.')
 
-    print('Now parsing color tables from Kraus+2021')
+    print('Now parsing color tables from Kraus+2022')
     krausurl = '../../SynthPhot/TableSynColors.txt'
     f = open(krausurl,"r")
     Krausphot = []
@@ -1308,7 +1308,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     f.close
     Krausphot = np.array(Krausphot)
 
-    print('Now parsing extinction tables from Kraus+2021')
+    print('Now parsing extinction tables from Kraus+2022')
     krausurl = '../../SynthPhot/TableAXAV.txt'
     f = open(krausurl,"r")
     KrausAXAV = []
