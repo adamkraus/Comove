@@ -197,7 +197,7 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     Cradec = bc.lb_to_radec(Cll,Cbb,degree=True,epoch=2000.0)
     Ccoord = SkyCoord( ra=Cradec[0]*u.deg , dec=Cradec[1]*u.deg , distance=999999.9 , frame='icrs' )
-    print('Convergent point: ',Ccoord)
+
 
     Cangle = gaiacoord.separation(Ccoord)
     zz = np.where( (Cangle.degree > 90.0) )
@@ -526,6 +526,12 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
     Pxyz = bc.lbd_to_XYZ( Pllbb[0] , Pllbb[1] , Pcoord.distance.value/1000.0 , degree=True)
 
+    print(Pxyz)
+    print('XYZ (pc)   : ' , round(Pxyz[0]*1000.0,1) , round(Pxyz[1]*1000.0,1) , round(Pxyz[2]*1000.0,1) )
+    print('UVW (km/s) : ' , round(Pvxvyvz[0],2) , round(Pvxvyvz[1],2) , round(Pvxvyvz[2],2) )    
+    print('Convergent point: ',Ccoord)
+
+
     fig,axs = plt.subplots(2,2)
     fig.set_figheight(16)
     fig.set_figwidth(16)
@@ -807,6 +813,63 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
     
     if showplots == True: plt.show()
     plt.close('all')
+
+
+
+    # Create sky map for only sources with RVs
+
+
+    zz = np.where( (sep3d.value < searchradpc.value) & (Gchi2 < vlim.value) & (sep.degree > 0.00001) & (Cangle.degree > convergcut) & \
+        (np.isnan(RV)==False) )
+    yy = zz[0][np.argsort((-Gchi2)[zz])]
+
+    RAlist = gaiacoord.ra[yy].value
+    DElist = gaiacoord.dec[yy].value
+    ww = np.where( RAlist > 180.0 )
+    RAlist[ww] = RAlist[ww] - 360.0
+
+    fig = plt.figure(figsize=(8,8))
+    ax = fig.add_subplot(1, 1, 1, projection=rotated_pole)
+
+    ax.gridlines(draw_labels=True,x_inline=True,y_inline=True, \
+                 xformatter=LONGITUDE_FORMATTER,yformatter=LATITUDE_FORMATTER)
+    ax.plot( circleRA , circleDE , c="gray" , ls="--" , transform=ccrs.Geodetic())
+    
+    figname=outdir + targname.replace(" ", "") + "skyRV.png"
+
+    base=plt.cm.get_cmap('cubehelix')
+
+    for x in range(0 , np.array(yy).size):
+        msize  = (17-12.0*(sep3d[yy[x]].value/searchradpc.value))
+        mcolor = base(Gchi2[yy[x]]/vlim.value)
+        medge  = 'black'
+        mzorder= 3
+        if (r['ruwe'][yy[x]] < 1.2):
+            mshape='o'
+        if (r['ruwe'][yy[x]] >= 1.2):
+            mshape='s'
+        if (rvcut != None):
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) > rvcut) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0])/RVerr[yy[x]] > 2.0):
+                mshape='+'
+                mcolor='black'
+                mzorder=2
+            if (np.isnan(RV[yy[x]])==False) & (np.abs(RV[yy[x]]-Gvrpmllpmbb[yy[x],0]) <= rvcut):
+                medge='blue'
+        if (mcolor == 'black'):
+            ddd = ax.plot( RAlist[x] , DElist[x] , marker=mshape ,  \
+                markeredgecolor=medge , ms = msize , mfc = mcolor , transform=ccrs.Geodetic() )
+        else:
+            ccc = ax.plot( RAlist[x] , DElist[x] , marker=mshape ,  \
+                markeredgecolor=medge , ms = msize , mfc = mcolor , transform=ccrs.Geodetic() )
+        
+    ax.plot( (Pcoord.ra.value-360.0) , Pcoord.dec.value , \
+            'rx' , markersize=18 , mew=3 , transform=ccrs.Geodetic())
+
+    plt.savefig(figname , bbox_inches='tight', pad_inches=0.2 , dpi=200)
+    
+    if showplots == True: plt.show()
+    plt.close('all')
+
 
     ## Query GALEX and 2MASS data
 
@@ -1284,7 +1347,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     print('Done parsing Mamajek table.')
 
     print('Now parsing color tables from Kraus+2022')
-    krausurl = '../../SynthPhot/TableSynColors.txt'
+    krausurl = datapath+'/TableSynColors.txt'
     f = open(krausurl,"r")
     Krausphot = []
     Krausfilt = np.array([ 'G'     , 'Ks'    , 'r'     ,     'i' , 'z'     , 'Bp'    , 'Rp' , 'Kp' , 'LP600' , \
@@ -1309,7 +1372,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     Krausphot = np.array(Krausphot)
 
     print('Now parsing extinction tables from Kraus+2022')
-    krausurl = '../../SynthPhot/TableAXAV.txt'
+    krausurl = datapath+'/TableAXAV.txt'
     f = open(krausurl,"r")
     KrausAXAV = []
     s1=[]
@@ -1321,7 +1384,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
                 np.float(s1[12]),np.float(s1[13]),np.float(s1[14]),0.276,0.176,np.float(s1[4]) ])
     KrausAXAV = np.stack([s1 for n in range(0,72)],axis=0)
 
-    krausurl = '../../SynthPhot/TableATeff.txt'
+    krausurl = datapath+'/TableATeff.txt'
     f = open(krausurl,"r")
     nline=0
     for s in f:
