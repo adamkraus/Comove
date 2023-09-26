@@ -37,4 +37,6 @@ This package also contains the beta version of another function, BinProb, that c
 
 # CITATION
 
-If you use FindFriends, please cite Tofflemire et al. (2021), "TESS Hunt for Young and Maturing Exoplanets (THYME). V. A Sub-Neptune Transiting a Young Star in a Newly Discovered 250 Myr Association". This is where the motivation, functionality, and prototypical use-case are described. If you use BinProb, cite Deacon & Kraus (2020), as this is where much of the core mathematical formalism was first described.
+If you use FindFriends, please cite Tofflemire et al. (2021), "TESS Hunt for Young and Maturing Exoplanets (THYME). V. A Sub-Neptune Transiting a Young Star in a Newly Discovered 250 Myr Association". This is where the motivation, functionality, and prototypical use-case are described.
+
+If you use BinProb, cite Deacon & Kraus (2020), as this is where much of the core mathematical formalism was first described.
