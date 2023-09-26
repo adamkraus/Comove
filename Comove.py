@@ -1269,6 +1269,13 @@ def findfriends(targname,radial_velocity,velocity_limit=5.0,search_radius=25.0,r
 
 def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMerr=None,targDPI=None,Pradvel=None,Pdist=None,Pdisterr=None,PdistU=None,PdistL=None,Pmass=None,PT=None):
 
+
+    targfilt = np.array(targfilt)
+    targDmag = np.array(targDmag)
+    targDmagerr = np.array(targDmagerr)
+    if isinstance(targDPM , np.ndarray):
+        if (len(targDPM) == 2): targDPM = np.array(targDPM)
+
 ### Defining standard color-magnitude and extinction relations
 
     SpT_Mama = []
@@ -1379,20 +1386,20 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     for s in f:
         s1.append(s[20:25])
     f.close
-    s1 = np.array([ 0.0,np.float(s1[1]),np.float(s1[2]),np.float(s1[3]),np.float(s1[5]),np.float(s1[6]),\
-                np.float(s1[7]),np.float(s1[8]),np.float(s1[9]),np.float(s1[10]),np.float(s1[11]),\
-                np.float(s1[12]),np.float(s1[13]),np.float(s1[14]),0.276,0.176,np.float(s1[4]) ])
+    s1 = np.array([ 0.0,float(s1[1]),float(s1[2]),float(s1[3]),float(s1[5]),float(s1[6]),\
+                float(s1[7]),float(s1[8]),float(s1[9]),float(s1[10]),float(s1[11]),\
+                float(s1[12]),float(s1[13]),float(s1[14]),0.276,0.176,float(s1[4]) ])
     KrausAXAV = np.stack([s1 for n in range(0,72)],axis=0)
 
     krausurl = datapath+'/TableATeff.txt'
     f = open(krausurl,"r")
     nline=0
     for s in f:
-        KrausAXAV[nline,0] = np.float( s[6:13].strip() )
-        KrausAXAV[nline,1] = np.float( s[23:31].strip() )
-        KrausAXAV[nline,2] = np.float( s[32:40].strip() )
-        KrausAXAV[nline,3] = np.float( s[41:49].strip() )
-        KrausAXAV[nline,7] = np.float( s[50:58].strip() )
+        KrausAXAV[nline,0] = float( s[6:13].strip() )
+        KrausAXAV[nline,1] = float( s[23:31].strip() )
+        KrausAXAV[nline,2] = float( s[32:40].strip() )
+        KrausAXAV[nline,3] = float( s[41:49].strip() )
+        KrausAXAV[nline,7] = float( s[50:58].strip() )
         nline=nline+1
     f.close
 
@@ -1479,12 +1486,13 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     if (Pdist != None): 
         print('Using user-provided distance.')
     if (Pdist == None):
+        print(Pgaia['parallax'])
         if ( np.isnan(Pgaia['parallax']) == False):
             v = Vizier(columns=["id","r_med_geo","r_lo_geo","r_hi_geo"] ,\
                             ).query_constraints(id=Pgaia['source_id'],catalog='I/352/gedr3dis')
             vtable = v['I/352/gedr3dis']
             distfrac = (vtable['B_rgeo'][0]-vtable['b_rgeo'][0])/(2.0*vtable['rgeo'][0])
-            if (distfrac < 0.1):
+            if (distfrac < 0.3):
                 Pdist = vtable['rgeo'][0]
                 PdistU= vtable['B_rgeo'][0]- vtable['rgeo'][0]
                 PdistL= vtable['rgeo'][0]  - vtable['b_rgeo'][0]
@@ -1667,18 +1675,25 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
         print(dX[0:10,:])
 
     vorb   = 29.78*np.sqrt((Pmass + sM)/rhoAU)
-    if (targDPMerr == None): sPMerr = np.interp( sG , [ 15.0 , 17.0 , 20.0 , 21.0] , [0.03 , 0.07 , 0.5 , 1.4])
-    if (targDPMerr != None): sPMerr = targDPMerr * np.ones(vorb.size)
-    sPMerr = np.sqrt( sPMerr**2 + (vorb*210.0/Pdist)**2 )
-    sPIerr = np.interp( sG , [ 15.0 , 17.0 , 20.0 , 21.0] , [0.03 , 0.07 , 0.5 , 1.3])
+    if (targDPMerr is not None): 
+        sPMerr = np.interp( sG , [ 15.0 , 17.0 , 20.0 , 21.0] , [0.03 , 0.07 , 0.5 , 1.4])
+        print(sPMerr)
+        sPMerr = targDPMerr * np.ones(vorb.size)
+        print(sPMerr)
+        sPMerr = np.sqrt( sPMerr**2 + (vorb*210.0/Pdist)**2 )
+        print(sPMerr)
+        sPIerr = np.interp( sG , [ 15.0 , 17.0 , 20.0 , 21.0] , [0.03 , 0.07 , 0.5 , 1.3])
+
 
 
 ### Create binary figures
 
     if (os.path.isdir('binprob/' + targname) == False): os.mkdir('binprob/' + targname)
 
+############
     if (targfilt.size > 1):
         for i in range(1,targfilt.size):
+
             fig,ax1 = plt.subplots(figsize=(9,8))
             ax1.axis([ 0.0 , (max(dX[:,0])+0.2) , 0.0 , (max(dX[:,i])+0.2) ])
             ax1.set_xlabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
@@ -1695,16 +1710,79 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
                             bbox_inches='tight', pad_inches=0.2 , dpi=200)
             plt.close('all')
 
+
+    if (targfilt.size > 1):
+        for i in range(1,targfilt.size):
+
+            nx=30
+            ny=30
+            xstart = 0.0
+            xend   = max(dX[:,0])+0.2
+            ystart = 0.0
+            yend   = max(dX[:,i])+0.2
+            xstep = (xend - xstart) / (nx)
+            ystep = (yend - ystart) / (ny)
+            renorm = np.abs((1.0 / xstep) * (1.0 / ystep))
+
+            X3,Y3 = np.meshgrid( np.linspace(xstart,xend,nx+1) , \
+                             np.linspace(ystart,yend,ny+1) )
+            DXDYmap = np.zeros([nx+1,ny+1])
+            for xxx in np.arange(nx+1):
+                for yyy in np.arange(ny+1):
+                    testcont1 = xstart + xstep*(xxx+0.5)
+                    testcont2 = ystart + ystep*(yyy+0.5)
+                    logBF = np.zeros(nsim)
+                    DeltalogBF = np.log10(np.e) * ( (-0.5) * ((testcont1 - dX[:,0])/(targDmagerr[0]+0.2))**2) \
+                            / (np.sqrt(2.0*np.pi)*(targDmagerr[0]+0.2))
+                    logBF = logBF + DeltalogBF
+                    DeltalogBF = np.log10(np.e) * ( (-0.5) * ((testcont2 - dX[:,i])/(targDmagerr[i]+0.2))**2) \
+                            / (np.sqrt(2.0*np.pi)*(targDmagerr[i]+0.2))
+                    logBF  = logBF  + DeltalogBF
+                    BF  = 10**logBF
+                    yy = np.where(np.isnan(BF) == False)[0]
+                    BFtot = binfrac*np.sum(BF[yy])   / (yy.size)
+                    DXDYmap[yyy,xxx] = BFtot # Number of companions per mag of contrast per mag of contrast
+
+            DXDYmap = DXDYmap * renorm
+
+            fig,ax1 = plt.subplots(figsize=(9,8))
+            ax1.axis([ xstart , xend , ystart , yend ])
+            ax1.set_xlabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
+            ax1.set_ylabel(r'$\Delta ' + targfilt[i] + '$ (mag)' , fontsize=16)
+            ax1.tick_params(axis='both',which='major',labelsize=12)
+
+            vvmax = np.max(np.log10(DXDYmap))
+            sortarr = np.sort(DXDYmap , axis=None)[::-1]
+            for j in np.arange(len(sortarr)):
+#                print(j , np.sum(sortarr[0:j])/np.sum(sortarr))
+                if ( (np.sum(sortarr[0:j])/np.sum(sortarr)) > 0.999 ):
+                    vvmin = np.log10(sortarr[j])
+                    break
+            print(vvmax,vvmin)
+            im = plt.pcolor( X3 , Y3 , np.log10(DXDYmap) , cmap='cubehelix_r' , vmax=vvmax, vmin=vvmin )
+            cb = plt.colorbar(im , orientation='vertical' )
+            cb.set_label(label=r'log$(\frac{N}{mag**2})$',fontsize=18)
+
+            plt.plot( targDmag[0] , targDmag[i] , 'rx' , \
+                 markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
+            plt.savefig( 'binprob/' + targname + '/' + (targname + '_Bin_'+targfilt[0]+'_'+targfilt[i]+'_Dkde.png') , \
+                            bbox_inches='tight', pad_inches=0.2 , dpi=200)
+            plt.close('all')
+
+
+#############
     if (targDPM is not None):
         fig,ax1 = plt.subplots(figsize=(9,8))
         pmsize = np.amax(targDPM) + 5.0
+        if ( np.linalg.norm(targDPM) > 5.0):
+	        pmsize = np.max( abs(targDPM) ) + 3.0
         ax1.axis([ Pgaia['pmra']-pmsize , Pgaia['pmra']+pmsize , Pgaia['pmdec']-pmsize , Pgaia['pmdec']+pmsize ])
         ax1.set_xlabel(r'PMRA (mas)' , fontsize=16)
         ax1.set_ylabel(r'PMDE (mas)' , fontsize=16)
         ax1.tick_params(axis='both',which='major',labelsize=12)
 
-        ccc = ax1.scatter( Pgaia['pmra'] + np.random.normal( 0.0 , sPMerr )  , \
-                  Pgaia['pmdec'] + np.random.normal( 0.0 , sPMerr ) , \
+        ccc = ax1.scatter( Pgaia['pmra'] + np.random.normal( 0.0 , sPMerr[0:10000] )  , \
+                  Pgaia['pmdec'] + np.random.normal( 0.0 , sPMerr[0:10000] ) , \
                   s=2 , c='black' , marker='+' , label='Simulated bins')
         plt.plot( Pgaia['pmra'] + targDPM[0] , Pgaia['pmdec'] + targDPM[1] , 'rx' , \
                  markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
@@ -1712,6 +1790,79 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
         plt.savefig('binprob/' + targname + '/' + targname + '_BinPMD.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
         plt.close('all')
 
+    if (targDPM is not None):
+
+        nx=30
+        ny=30
+        xstart = Pgaia['pmra']-pmsize
+        xend   = Pgaia['pmra']+pmsize
+        ystart = Pgaia['pmdec']-pmsize
+        yend   = Pgaia['pmdec']+pmsize
+        xstep = (xend - xstart) / (nx)
+        ystep = (yend - ystart) / (ny)
+        renorm = np.abs((1.0 / xstep) * (1.0 / ystep))
+        
+        print(xstart,xend,xstep )
+        print(ystart,yend,ystep)
+
+
+        X3,Y3 = np.meshgrid( np.linspace(xstart,xend,nx+1) , \
+                             np.linspace(ystart,yend,ny+1) )
+        PMmap = np.zeros([nx+1,ny+1])
+        for xxx in np.arange(nx+1):
+            for yyy in np.arange(ny+1):
+                testPMx = xstart + xstep*(xxx+0.5)
+                testPMy = ystart + ystep*(yyy+0.5)
+                logBF = np.zeros(nsim)
+#                print(testPMx,testPMy)
+                DeltalogBF = np.log10(np.e) * ( (-0.5) * ( ((Pgaia['pmra'] -testPMx)/sPMerr)**2 +  \
+                                                           ((Pgaia['pmdec']-testPMy)/sPMerr)**2 ) )\
+                    - np.log10(2.0*np.pi*sPMerr**2)
+                logBF  = logBF  + DeltalogBF
+                BF  = 10**logBF
+                yy = np.where(np.isnan(BF) == False)[0]
+                BFtot = binfrac*np.sum(BF[yy])   / (yy.size)
+                PMmap[yyy,xxx] = BFtot # Number of companions per mag of contrast per dex of separation
+
+        PMmap = PMmap * renorm	
+
+
+        fig,ax1 = plt.subplots(figsize=(9,8))
+        ax1.axis([ xstart , xend , ystart , yend ])
+        ax1.set_xlabel(r'PMRA (mas)' , fontsize=16)
+        ax1.set_ylabel(r'PMDE (mas)' , fontsize=16)
+        ax1.tick_params(axis='both',which='major',labelsize=12)
+
+        vvmax = np.log10(np.max(PMmap))
+        sortarr = np.sort(PMmap , axis=None)[::-1]
+        for j in np.arange(len(sortarr)):
+#            print(j , np.sum(sortarr[0:j])/np.sum(sortarr))
+            if ( (np.sum(sortarr[0:j])/np.sum(sortarr)) > 0.999 ):
+                vvmin = np.log10(sortarr[j])
+                break
+        print(10**vvmin)
+        yyy = np.where(PMmap < 10**vvmin)
+        print(yyy)
+        PMmap[yyy[0]] = vvmin
+        print(vvmax,vvmin)
+        im = plt.pcolor( X3 , Y3 , np.log10(PMmap) , cmap='cubehelix_r' , vmax=vvmax, vmin=vvmin )
+        cb = plt.colorbar(im , orientation='vertical' )
+        cb.set_label(label=r'log$(\frac{N}{(mas/yr)**2})$',fontsize=18)
+
+#        ccc = ax1.scatter( Pgaia['pmra'] + np.random.normal( 0.0 , sPMerr )  , \
+#                  Pgaia['pmdec'] + np.random.normal( 0.0 , sPMerr ) , \
+#                  s=2 , c='black' , marker='+' , label='Simulated bins')
+        plt.plot( Pgaia['pmra'] + targDPM[0] , Pgaia['pmdec'] + targDPM[1] , 'rx' , \
+                 markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
+
+        plt.savefig('binprob/' + targname + '/' + targname + '_BinPMDkde.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
+        plt.close('all')
+
+    print('zzzz')
+
+
+
+#############
     if (targDPI is not None):
         fig,ax1 = plt.subplots(figsize=(9,8))
         ax1.axis([ Pgaia['parallax']-4.0 , Pgaia['parallax']+4.0 , 0.0 , (max(dX[:,0])+0.2) ])
@@ -1730,22 +1881,84 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
         plt.savefig('binprob/' + targname + '/' + targname + '_BinGPID.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
         plt.close('all')
 
+#############
     if (targfilt.size > 0): # Note, I think one contrast and a separation are always needed.
-    
+
         fig,ax1 = plt.subplots(figsize=(9,8))
-        ax1.axis([ 10**-5.0, (100000.0/Pdist) , 0.0 , (max(dX[:,0])+0.2) ])
+        ax1.axis([ 10**-5.0, (100000.0/Pdist) , (max(dX[:,0])+0.2) , 0.0 ])
         ax1.set_xlabel(r'Proj. Sep. (arcsec)' , fontsize=16)
         ax1.set_ylabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
         ax1.tick_params(axis='both',which='major',labelsize=12)
         ax1.set_xscale('log')
 
-        ccc = ax1.scatter(rhoAS  , \
-                  dX[:,0] + np.random.normal( 0.0 , (targDmagerr[0]+0.1) , nsim ) , \
+        ccc = ax1.scatter(rhoAS[0:10000]  , \
+                  dX[0:10000,0] + np.random.normal( 0.0 , (targDmagerr[0]+0.1) , 10000 ) , \
                   s=2 , c='black' , marker='+' , label='Simulated bins')
         plt.plot( targsep , targDmag[0] , 'rx' , \
                  markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
 
         plt.savefig('binprob/' + targname + '/' + targname + '_BinGrhoD.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
+        plt.close('all')
+
+    if (targfilt.size > 0): # Note, I think one contrast and a separation are always needed.
+
+        nx=30
+        ny=30
+        xstart = -3.0
+        xend   = np.log10(100000.0/Pdist)
+        ystart = max(dX[:,0])+0.2
+        yend   = 0.0
+        xstep = (xend - xstart) / (nx)
+        ystep = (yend - ystart) / (ny)
+        renorm = np.abs((1.0 / xstep) * (1.0 / ystep))
+
+        X3,Y3 = np.meshgrid( np.logspace(xstart,xend,nx+1) , \
+                             np.linspace(ystart,yend,ny+1) )
+        GrhoDmap = np.ones([nx+1,ny+1])
+        for xxx in np.arange(nx+1):
+            for yyy in np.arange(ny+1):
+                testlogsep = xstart + xstep*(xxx+0.5)
+                testcont   = ystart + ystep*(yyy+0.5)
+                logBF = np.zeros(nsim)
+                DeltalogBF = np.log10(np.e) * ( (-0.5) * ((testlogsep-np.log10(rhoAS))/0.2)**2 ) / (np.sqrt(2.0*np.pi)*0.2)
+                logBF = logBF + DeltalogBF
+                DeltalogBF = np.log10(np.e) * ( (-0.5) * ((testcont - dX[:,0])/(targDmagerr[0]+0.2))**2) \
+                        / (np.sqrt(2.0*np.pi)*(targDmagerr[0]+0.2))
+                logBF  = logBF  + DeltalogBF
+                BF  = 10**logBF
+                yy = np.where(np.isnan(BF) == False)[0]
+                BFtot = binfrac*np.sum(BF[yy])   / (yy.size)
+                GrhoDmap[yyy,xxx] = BFtot # Number of companions per mag of contrast per dex of separation
+
+        GrhoDmap = GrhoDmap[:,:] * renorm
+
+        fig,ax1 = plt.subplots(figsize=(9,8))
+        ax1.axis([ 10**(xstart) , 10**(xend) , ystart , yend ])
+        ax1.set_xlabel(r'Proj. Sep. (arcsec)' , fontsize=16)
+        ax1.set_ylabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
+        ax1.tick_params(axis='both',which='major',labelsize=12)
+        ax1.set_xscale('log')
+
+        vvmax = np.max(np.log10(GrhoDmap))
+        sortarr = np.sort(GrhoDmap , axis=None)[::-1]
+        for j in np.arange(len(sortarr)):
+#            print(j , np.sum(sortarr[0:j])/np.sum(sortarr))
+            if ( (np.sum(sortarr[0:j])/np.sum(sortarr)) > 0.999 ):
+                vvmin = np.log10(sortarr[j])
+                break
+        print(vvmax,vvmin)
+        im = plt.pcolor( X3 , Y3 , np.log10(GrhoDmap) , cmap='cubehelix_r' , vmax=vvmax, vmin=vvmin )
+        cb = plt.colorbar(im , orientation='vertical' )
+        cb.set_label(label=r'log$(\frac{N}{mag \times dex})$',fontsize=18)
+
+        print(np.log10(GrhoDmap[:,15]))
+        print('wwwww')
+
+
+        plt.plot( targsep , targDmag[0] , 'rx' , \
+                  markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
+
+        plt.savefig('binprob/' + targname + '/' + targname + '_BinGrhoDkde.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
         plt.close('all')
 
 
@@ -1754,6 +1967,11 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     smin = (40000.0/Pdist)
     smax = max([3600.0 , 206265.0/Pdist])
     print('Search inner/outer radii in arcsec: ',smin,smax)
+    Garea = np.pi * ( smax**2 - smin**2 )
+    print('Total search area: ',Garea)
+    print('Note, for binaries simulating one million but expect 0.46. So can rescale field down by  within 100,000 AU. So can compute a separation rescaling.')
+    Gscale = np.sqrt( 0.46 / 10000.0)
+    print('Rescaling inward of field population: ',Gscale)
 
     # Query Gaia FULL DR3 unless already downloaded
     testname = 'binprob/GaiaDL/' + targname + '_DR3.pickle'
@@ -2032,6 +2250,7 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
 
 ### Field interloper plots
 
+#######################
     if (targfilt.size > 1):
         for i in range(1,targfilt.size):
             fig,ax1 = plt.subplots(figsize=(9,8))
@@ -2068,9 +2287,74 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
                             bbox_inches='tight', pad_inches=0.2 , dpi=200)
             plt.close('all')
 
+
+            nx=30
+            ny=30
+            xstart = 0.0
+            xend   = max(fdX[:,0])+0.2
+            ystart = 0.0
+            yend   = max(fdX[:,i])+0.2
+            xstep = (xend - xstart) / (nx)
+            ystep = (yend - ystart) / (ny)
+            renorm = np.abs((1.0 / xstep) * (1.0 / ystep))
+
+            fig,ax1 = plt.subplots(figsize=(9,8))
+            ax1.axis([ xstart , xend , ystart , yend ])
+            ax1.set_xlabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
+            ax1.set_ylabel(r'$\Delta ' + targfilt[i] + '$ (mag)' , fontsize=16)
+            ax1.tick_params(axis='both',which='major',labelsize=12)
+
+
+            X3,Y3 = np.meshgrid( np.linspace(xstart,xend,nx+1) , \
+                             np.linspace(ystart,yend,ny+1) )
+            DXDYmap = np.zeros([nx+1,ny+1])
+            for xxx in np.arange(nx+1):
+                for yyy in np.arange(ny+1):
+                    testcont1 = xstart + xstep*(xxx+0.5)
+                    testcont2 = ystart + ystep*(yyy+0.5)
+                    logFF = np.zeros(frhoAS.size)
+                    DeltalogFF = np.log10(np.e) * ( (-0.5) * ((testcont1 - fdX[:,0])/(targDmagerr[0]+fdXerr[:,0]))**2) \
+                              / (np.sqrt(2.0*np.pi)*(targDmagerr[0]+fdXerr[:,0]))
+                    logFF = logFF + DeltalogFF
+                    DeltalogFF = np.log10(np.e) * ( (-0.5) * ((testcont2 - fdX[:,i])/(targDmagerr[i]+fdXerr[:,i]))**2) \
+                              / (np.sqrt(2.0*np.pi)*(targDmagerr[i]+fdXerr[:,i]))
+                    logFF = logFF + DeltalogFF
+
+
+                    FF  = 10**logFF
+                    yy = np.where(np.isnan(FF) == False)[0]
+                    FFtot = binfrac*np.sum(FF[yy])   / (yy.size)
+                    DXDYmap[yyy,xxx] = FFtot # Number of companions per mag of contrast per mag of contrast
+
+            DXDYmap = DXDYmap * renorm	
+
+            vvmax = np.max(np.log10(DXDYmap))
+            sortarr = np.sort(DXDYmap , axis=None)[::-1]
+            for j in np.arange(len(sortarr)):
+#                print(j , np.sum(sortarr[0:j])/np.sum(sortarr))
+                if ( (np.sum(sortarr[0:j])/np.sum(sortarr)) > 0.999 ):
+                    vvmin = np.log10(sortarr[j])
+                    break
+            print(vvmax,vvmin)
+            im = plt.pcolor( X3 , Y3 , np.log10(DXDYmap) , cmap='cubehelix_r' , vmax=vvmax, vmin=vvmin )
+            cb = plt.colorbar(im , orientation='vertical' )
+            cb.set_label(label=r'log$(\frac{N}{mag**2})$',fontsize=18)
+        
+            plt.plot( targDmag[0] , targDmag[i] , 'rx' , \
+                 markersize=15 , mew=3 , markeredgecolor='red' , zorder=3 , label=(targname+' cand'))
+
+            lgnd = plt.legend()
+            for lh in lgnd.legendHandles:
+                lh._sizes = [25.0]
+            plt.savefig( 'binprob/' + targname + '/' + (targname + '_Fld_'+targfilt[0]+'_'+targfilt[i]+'_Dkde.png') , \
+                            bbox_inches='tight', pad_inches=0.2 , dpi=200)
+            plt.close('all')
+
+
+#################################
     if (targDPM is not None):
         fig,ax1 = plt.subplots(figsize=(9,8))
-        pmsize = np.amax(targDPM) + 5.0
+        pmsize = np.amax(abs(targDPM)) + 5.0
         ax1.axis([ Pgaia['pmra']-pmsize , Pgaia['pmra']+pmsize , Pgaia['pmdec']-pmsize , Pgaia['pmdec']+pmsize ])
         ax1.set_xlabel(r'PMRA (mas)' , fontsize=16)
         ax1.set_ylabel(r'PMDE (mas)' , fontsize=16)
@@ -2085,7 +2369,73 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
         plt.close('all')
 
 
+        fig,ax1 = plt.subplots(figsize=(9,8))
 
+        nx=30
+        ny=30
+        xstart = Pgaia['pmra']-pmsize
+        xend   = Pgaia['pmra']+pmsize
+        ystart = Pgaia['pmdec']-pmsize
+        yend   = Pgaia['pmdec']+pmsize
+        xstep = (xend - xstart) / (nx)
+        ystep = (yend - ystart) / (ny)
+        renorm = np.abs((1.0 / xstep) * (1.0 / ystep))
+        
+        print(xstart,xend,xstep )
+        print(ystart,yend,ystep)
+
+
+        X3,Y3 = np.meshgrid( np.linspace(xstart,xend,nx+1) , \
+                             np.linspace(ystart,yend,ny+1) )
+        PMmap = np.zeros([nx+1,ny+1])
+        for xxx in np.arange(nx+1):
+            for yyy in np.arange(ny+1):
+                testPMx = xstart + xstep*(xxx+0.5)
+                testPMy = ystart + ystep*(yyy+0.5)
+                logFF = np.zeros(frhoAS.size)
+                DeltalogFF = np.log10(np.e) * ( (-0.5) * (((Pgaia['pmra']  + testPMx - r['pmra'] )/np.amax(np.array([1.0 , np.median(sPMerr)])) )**2 + \
+                                                          ((Pgaia['pmdec'] + testPMy - r['pmdec'])/np.amax(np.array([1.0 , np.median(sPMerr)])) )**2)) \
+                                                         - np.log10(2.0*np.pi*np.amax(np.array([1.0 , np.median(sPMerr)]))**2)
+#                                                        - np.log10(2.0*np.pi*1.0**2)
+                logFF  = logFF  + DeltalogFF
+                FF  = 10**logFF
+                yy = np.where(np.isnan(FF) == False)[0]
+                FFtot = binfrac*np.sum(FF[yy])   / (yy.size)
+                PMmap[yyy,xxx] = FFtot # Number of companions per mag of contrast per dex of separation
+
+        PMmap = PMmap * renorm	
+
+        ax1.axis([ xstart , xend , ystart , yend ])
+        ax1.set_xlabel(r'PMRA (mas)' , fontsize=16)
+        ax1.set_ylabel(r'PMDE (mas)' , fontsize=16)
+        ax1.tick_params(axis='both',which='major',labelsize=12)
+
+        vvmax = np.log10(np.max(PMmap))
+        sortarr = np.sort(PMmap , axis=None)[::-1]
+        print(np.sum(sortarr))
+        print('wwww')
+        for j in np.arange(len(sortarr)):
+#            print(j , np.sum(sortarr[0:j])/np.sum(sortarr) , sortarr[j])
+            if ( (np.sum(sortarr[0:j])/np.sum(sortarr)) > 0.999 ):
+                print(sortarr[j])
+                vvmin = np.log10(sortarr[j])
+                break
+        print(vvmax,vvmin)
+        im = plt.pcolor( X3 , Y3 , np.log10(PMmap) , cmap='cubehelix_r' , vmax=vvmax, vmin=vvmin )
+        cb = plt.colorbar(im , orientation='vertical' )
+        cb.set_label(label=r'log$(\frac{N}{(mas/yr)**2})$',fontsize=18)
+
+#        ccc = ax1.scatter( r['pmra']  , r['pmdec'] , \
+#                  s=2 , c='black' , marker='+' , label='Simulated bins')
+        plt.plot( Pgaia['pmra'] + targDPM[0] , Pgaia['pmdec'] + targDPM[1] , 'rx' , \
+                 markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
+
+        plt.savefig('binprob/' + targname + '/' + targname + '_FldPMDkde.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
+        plt.close('all')
+
+
+
+#################################
     if (targDPI is not None):
         fig,ax1 = plt.subplots(figsize=(9,8))
         ax1.axis([ Pgaia['parallax']-4.0 , Pgaia['parallax']+4.0 , 0.0 , (max(fdX[:,0])+0.2) ])
@@ -2102,22 +2452,85 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
         plt.savefig('binprob/' + targname + '/' + targname + '_FldGPID.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
         plt.close('all')
 
-    print(fdX)
-    print(smax)
+
+
+###########################
     if (targfilt.size > 0):
         fig,ax1 = plt.subplots(figsize=(9,8))
-        ax1.axis([ 1.0, smax , 0.0 , (max(fdX[:,0])+0.2) ])
+        ax1.axis([ 10**-5.0, (100000.0/Pdist) , (max(dX[:,0])+0.2) , 0.0 ])
+#        ax1.axis([ 1.0, smax , 0.0 , (max(fdX[:,0])+0.2) ])
         ax1.set_xlabel(r'Proj. Sep. (arcsec)' , fontsize=16)
         ax1.set_ylabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
         ax1.tick_params(axis='both',which='major',labelsize=12)
         ax1.set_xscale('log')
 
-        ccc = ax1.scatter(frhoAS  , fdX[:,0] + np.random.normal( 0.0 , (targDmagerr[0]+fdXerr[:,0]) , fdX[:,0].size ) , \
+#        ccc = ax1.scatter(frhoAS  , fdX[:,0] + np.random.normal( 0.0 , (targDmagerr[0]+fdXerr[:,0]) , fdX[:,0].size ) , \
+        ccc = ax1.scatter(frhoAS*Gscale  , fdX[:,0] + np.random.normal( 0.0 , (targDmagerr[0]+fdXerr[:,0]) , fdX[:,0].size ) , \
                   s=2 , c='black' , marker='+' , label='Simulated bins')
         plt.plot( targsep , targDmag[0] , 'rx' , \
                  markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
 
         plt.savefig('binprob/' + targname + '/' + targname + '_FldGrhoD.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
+        plt.close('all')
+
+
+    if (targfilt.size > 0):
+        nx=30
+        ny=30
+        xstart = -3.0
+        xend   = np.log10(100000.0/Pdist)
+        ystart = max(dX[:,0])+0.2
+        yend   = 0.0
+        xstep = (xend - xstart) / (nx)
+        ystep = (yend - ystart) / (ny)
+        renorm = np.abs((1.0 / xstep) * (1.0 / ystep))
+
+        X3,Y3 = np.meshgrid( np.logspace(xstart,xend,nx+1) , \
+                             np.linspace(ystart,yend,ny+1) )
+        GrhoDmap = np.ones([nx+1,ny+1])
+        for xxx in np.arange(nx+1):
+            for yyy in np.arange(ny+1):
+                testlogsep = xstart + xstep*(xxx+0.5)
+                testcont   = ystart + ystep*(yyy+0.5)
+                logFF = np.zeros(frhoAS.size)
+                DeltalogFF = np.ones(frhoAS.size) * np.log10((frhoAS.size / (np.pi * (smax**2 - smin**2))) \
+                                     * 2.0 * np.pi * (10**testlogsep)**2 / np.log10(np.e))
+                logFF = logFF + DeltalogFF
+                DeltalogFF = np.log10(np.e) * ( (-0.5) * ((testcont - fdX[:,i])/(targDmagerr[i]+fdXerr[:,i]))**2) \
+                             / (np.sqrt(2.0*np.pi)*(targDmagerr[i]+fdXerr[:,i]))
+                logFF  = logFF  + DeltalogFF
+                FF  = 10**logFF
+                yy = np.where(np.isnan(FF) == False)[0]
+                FFtot = binfrac*np.sum(FF[yy])   / (yy.size)
+                GrhoDmap[yyy,xxx] = FFtot # Number of companions per mag of contrast per dex of separation
+
+        GrhoDmap = GrhoDmap * renorm	
+
+        fig,ax1 = plt.subplots(figsize=(9,8))
+        ax1.axis([ 10**(xstart) , 10**(xend) , ystart , yend ])
+        ax1.set_xlabel(r'Proj. Sep. (arcsec)' , fontsize=16)
+        ax1.set_ylabel(r'$\Delta ' + targfilt[0] + '$ (mag)' , fontsize=16)
+        ax1.tick_params(axis='both',which='major',labelsize=12)
+        ax1.set_xscale('log')
+
+        vvmax = np.max(np.log10(GrhoDmap))
+        sortarr = np.sort(GrhoDmap , axis=None)[::-1]
+        for j in np.arange(len(sortarr)):
+#            print(j , np.sum(sortarr[0:j])/np.sum(sortarr))
+            if ( (np.sum(sortarr[0:j])/np.sum(sortarr)) > 0.999 ):
+                vvmin = np.log10(sortarr[j])
+                break
+        print(vvmax,vvmin)
+        im = plt.pcolor( X3 , Y3 , np.log10(GrhoDmap) , cmap='cubehelix_r' , vmax=vvmax, vmin=vvmin )
+        cb = plt.colorbar(im , orientation='vertical' )
+        cb.set_label(label=r'log$(\frac{N}{mag \times dex})$',fontsize=18)
+
+#        ccc = ax1.scatter(frhoAS*Gscale  , fdX[:,0] + np.random.normal( 0.0 , (targDmagerr[0]+fdXerr[:,0]) , fdX[:,0].size ) , \
+#                  s=2 , c='black' , marker='+' , label='Simulated bins')
+        plt.plot( targsep , targDmag[0] , 'rx' , \
+                 markersize=12 , mew=3 , markeredgecolor='red' , zorder=3 , label=targname )
+
+        plt.savefig('binprob/' + targname + '/' + targname + '_FldGrhoDkde.png',bbox_inches='tight', pad_inches=0.2 , dpi=200)
         plt.close('all')
 
 
@@ -2158,16 +2571,17 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     if (targDPM is not None):
         DeltalogBF = np.log10(np.e) * ( (-0.5) * ((targDPM[0]/sPMerr)**2 + (targDPM[1]/sPMerr)**2)) \
                 - np.log10(2.0*np.pi*sPMerr**2)
-#        DeltalogFF = np.log10(np.e) * ( (-0.5) * (((Pgaia['pmra']  + targDPM[0] - r['pmra'] )/1.0)**2 + \
-#                                              ((Pgaia['pmdec'] + targDPM[1] - r['pmdec'])/1.0)**2)) \
+
         print('zzzzzz')
-        print(np.median(sPMerr))
-        print(np.array([1.0 , np.median(sPMerr)]))
-        print('Note, KDE bandwidth for field PMD plot is: ',np.amax(np.array([1.0 , np.median(sPMerr)])) )
+        print('Note, KDE bandwidth for binary PMD is: ',np.median(sPMerr))
 
         DeltalogFF = np.log10(np.e) * ( (-0.5) * (((Pgaia['pmra']  + targDPM[0] - r['pmra'] )/np.amax(np.array([1.0 , np.median(sPMerr)])) )**2 + \
-                                              ((Pgaia['pmdec'] + targDPM[1] - r['pmdec'])/np.amax(np.array([1.0 , np.median(sPMerr)])) )**2)) \
-                - np.log10(2.0*np.pi*1.0**2)
+                                              ((Pgaia['pmdec'] + targDPM[1] - r['pmdec'])    /np.amax(np.array([1.0 , np.median(sPMerr)])) )**2)) \
+                - np.log10(2.0*np.pi*np.amax(np.array([1.0 , np.median(sPMerr)]))**2)
+#                - np.log10(2.0*np.pi*1.0**2)
+        print('Note, KDE bandwidth for field PMD is: ',np.amax(np.array([1.0 , np.median(sPMerr)])) )
+        print('I should think more about the KDE bandwidth for the field PMD calculation. Do I use the observational uncertainty? I think yes.')
+
         logBF  = logBF  + DeltalogBF
         logFF  = logFF  + DeltalogFF
         logBFA = logBFA + DeltalogBF
@@ -2230,7 +2644,15 @@ def binprob(targname,targfilt,targDmag,targDmagerr,targsep,targDPM=None,targDPMe
     print('Probability of field:  ',FFtotA/(FFtotA+BFtotA))
     print('Probability of binary: ',BFtotA/(FFtotA+BFtotA))
 
+    fmt9 = "%8s %17.15f %11.9f %11.9f %11.9f %17.15f %11.9f %11.9f %11.9f"
+    filename = 'binprobs.txt'
+    with open(filename,'a') as file1:
+        file1.write(fmt9 % (targname , BFtot/(FFtot+BFtot) , BFtotS/(FFtotS+BFtotS) , BFtotP/(FFtotP+BFtotP) , BFtotA/(FFtotA+BFtotA) , \
+                                       FFtot/(FFtot+BFtot) , FFtotS/(FFtotS+BFtotS) , FFtotP/(FFtotP+BFtotP) , FFtotA/(FFtotA+BFtotA) ) )
+        file1.write("\n")
+
     print('Returning an array of Pbin (all, survey, phot, astro) and then Pfield (same order).')
 
     return np.array([ [BFtot/(FFtot+BFtot) , BFtotS/(FFtotS+BFtotS) , BFtotP/(FFtotP+BFtotP) , BFtotA/(FFtotA+BFtotA)] , \
                       [FFtot/(FFtot+BFtot) , FFtotS/(FFtotS+BFtotS) , FFtotP/(FFtotP+BFtotP) , FFtotA/(FFtotA+BFtotA)] ])
+
